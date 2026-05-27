@@ -18,6 +18,7 @@ export class FrameRecorder {
   private canvas: HTMLCanvasElement;
 
   constructor(canvas: HTMLCanvasElement) {
+
     this.canvas = canvas;
   }
 

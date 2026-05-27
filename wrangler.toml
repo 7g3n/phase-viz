@@ -1,0 +1,8 @@
+name = "phase-viz-ffmpeg-r2-proxy"
+main = "cloudflare-worker/ffmpeg-r2-proxy.js"
+compatibility_date = "2026-05-27"
+
+[[r2_buckets]]
+binding = "R2_ASSETS"
+bucket_name = "phase-viz-ffmpeg-assets"
+preview_bucket_name = "phase-viz-ffmpeg-assets"

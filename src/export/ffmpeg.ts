@@ -1,9 +1,33 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
+import type { FFmpeg as FFmpegType } from '@ffmpeg/ffmpeg';
 import { FrameRecorder } from './recorder';
 
 const FFMPEG_CORE_VERSION = '0.12.10';
-const coreURL = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/ffmpeg-core.js`;
-const wasmURL = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/ffmpeg-core.wasm`;
+const LOCAL_CORE = '/vendor/ffmpeg-core.js';
+const LOCAL_WASM = '/vendor/ffmpeg-core.wasm';
+const CDN_BASE = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
+const R2_ASSET_BASE_URL = import.meta.env.VITE_FFMPEG_ASSET_BASE_URL?.replace(/\/+$/, '');
+
+function createCoreURLs(baseURL: string) {
+  return {
+    coreURL: `${baseURL}/ffmpeg-core.js`,
+    wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+  };
+}
+
+async function resolveCoreURLs(signal?: AbortSignal) {
+  if (R2_ASSET_BASE_URL) {
+    return createCoreURLs(R2_ASSET_BASE_URL);
+  }
+
+  try {
+    const res = await fetch(LOCAL_CORE, { method: 'HEAD', signal });
+    if (res.ok) return { coreURL: LOCAL_CORE, wasmURL: LOCAL_WASM };
+  } catch {
+    // ignore and fallback to remote sources
+  }
+
+  return createCoreURLs(CDN_BASE);
+}
 
 interface FFmpegFrameExportOptions {
   canvas: HTMLCanvasElement;
@@ -16,28 +40,70 @@ interface FFmpegFrameExportOptions {
   signal?: AbortSignal;
 }
 
-let ffmpegInstance: FFmpeg | null = null;
-let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
+let ffmpegInstance: FFmpegType | null = null;
+let ffmpegLoadPromise: Promise<FFmpegType> | null = null;
 
-async function getFFmpeg(signal?: AbortSignal): Promise<FFmpeg> {
+async function getFFmpeg(signal?: AbortSignal): Promise<FFmpegType> {
   if (ffmpegInstance) return ffmpegInstance;
   if (ffmpegLoadPromise) return ffmpegLoadPromise;
 
-  const ffmpeg = new FFmpeg();
+  // Dynamically import `@ffmpeg/ffmpeg` at runtime so it is not bundled
+  // into the main application chunk during build.
   ffmpegLoadPromise = (async () => {
     throwIfAborted(signal);
-    await ffmpeg.load({ coreURL, wasmURL }, { signal });
-    ffmpegInstance = ffmpeg;
-    return ffmpeg;
+    const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+    const ffmpeg = new FFmpeg();
+    const urls = await resolveCoreURLs(signal);
+
+    // Debugging: log resolved URLs and attempt lightweight network checks
+    try {
+      console.log('[ffmpeg] resolved URLs', urls);
+      try {
+        const r = await fetch(urls.coreURL, { method: 'GET' });
+        console.log('[ffmpeg] core GET', r.status, r.headers.get('content-type'), r.headers.get('access-control-allow-origin'));
+      } catch (e) {
+        console.error('[ffmpeg] core GET failed', e);
+      }
+      try {
+        const r2 = await fetch(urls.wasmURL, { method: 'GET' });
+        console.log('[ffmpeg] wasm GET', r2.status, r2.headers.get('content-type'), r2.headers.get('access-control-allow-origin'));
+      } catch (e) {
+        console.error('[ffmpeg] wasm GET failed', e);
+      }
+
+      // Try dynamic import of the core script to reproduce module import failures early.
+      try {
+        // dynamic import may execute the module; this is intended for debugging only.
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        await import(urls.coreURL);
+        console.log('[ffmpeg] dynamic import(core) succeeded');
+      } catch (e) {
+        console.error('[ffmpeg] dynamic import(core) failed', e);
+      }
+    } catch (e) {
+      console.warn('[ffmpeg] pre-load checks failed', e);
+    }
+
+    try {
+      await ffmpeg.load({ coreURL: urls.coreURL, wasmURL: urls.wasmURL }, { signal });
+    } catch (err) {
+      console.error('[ffmpeg] load failed', { coreURL: urls.coreURL, wasmURL: urls.wasmURL, err });
+      throw err;
+    }
+    ffmpegInstance = ffmpeg as unknown as FFmpegType;
+    return ffmpeg as unknown as FFmpegType;
   })();
 
   try {
     return await ffmpegLoadPromise;
   } catch (err) {
-    ffmpeg.terminate();
-    if (ffmpegLoadPromise) {
-      ffmpegLoadPromise = null;
+    const created = await ffmpegLoadPromise!.catch(() => null);
+    if (created) {
+      try { created.terminate(); } catch { /* ignore */ }
+      if (ffmpegInstance === created) ffmpegInstance = null;
     }
+    ffmpegLoadPromise = null;
     throw err;
   }
 }

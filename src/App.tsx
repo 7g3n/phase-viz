@@ -13,7 +13,8 @@ import theme from './theme';
 import { useStore } from './store';
 import Uploader from './ui/Uploader';
 import Controls from './ui/Controls';
-import VisualizerCanvas from './ui/VisualizerCanvas';
+import React, { Suspense } from 'react';
+const VisualizerCanvas = React.lazy(() => import('./ui/VisualizerCanvas'));
 import Timeline from './ui/Timeline';
 import type { ExportFrameRenderer, FrameRecorder } from './export/recorder';
 import { DEFAULT_EXPORT_FILE_NAME, triggerBlobDownload } from './export/download';
@@ -214,7 +215,9 @@ export default function App() {
             }}
           >
             <Box sx={{ flex: 1, position: 'relative' }}>
-              <VisualizerCanvas recorderRef={recorderRef} exportRendererRef={exportRendererRef} />
+              <Suspense fallback={<div style={{width: '100%', height: '100%'}}/>}>
+                <VisualizerCanvas recorderRef={recorderRef} exportRendererRef={exportRendererRef} />
+              </Suspense>
 
               {/* Fullscreen toggle */}
               <Tooltip title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
