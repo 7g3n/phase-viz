@@ -29,6 +29,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
     audioBuffer,
     isPlaying,
     preset,
+    presetRevision,
     effects,
     backgroundImageUrl,
     setFps,
@@ -70,7 +71,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
   useEffect(() => {
     if (!sceneRef.current) return;
     sceneRef.current.applyPreset(PRESETS[preset]);
-  }, [preset]);
+  }, [preset, presetRevision]);
 
   // Apply background image when it changes
   useEffect(() => {
@@ -213,6 +214,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
           glitchNoise: effects.glitchNoise || presetConfig.useGlitch,
           datamosh: effects.datamosh,
           strongDatamosh: effects.strongDatamosh,
+          blockStrongDatamosh: effects.blockStrongDatamosh,
           meltingDatamosh: effects.meltingDatamosh,
           bloom: effects.bloom,
           scanlines: presetConfig.useScanlines,
@@ -368,6 +370,7 @@ function renderAnalyzedFrame(
       glitchNoise: effects.glitchNoise || presetConfig.useGlitch,
       datamosh: effects.datamosh,
       strongDatamosh: effects.strongDatamosh,
+      blockStrongDatamosh: effects.blockStrongDatamosh,
       meltingDatamosh: effects.meltingDatamosh,
       bloom: effects.bloom,
       scanlines: presetConfig.useScanlines,

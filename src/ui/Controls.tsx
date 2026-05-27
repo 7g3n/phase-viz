@@ -23,6 +23,7 @@ const EFFECT_LABELS: { key: keyof EffectSettings; label: string }[] = [
   { key: 'rgbSplit', label: 'RGB Split' },
   { key: 'datamosh', label: 'Datamosh' },
   { key: 'strongDatamosh', label: 'Strong Datamosh' },
+  { key: 'blockStrongDatamosh', label: 'Block Strong' },
   { key: 'meltingDatamosh', label: 'Melt Datamosh' },
   { key: 'glitchNoise', label: 'Glitch' },
   { key: 'cameraShake', label: 'Cam Shake' },
@@ -82,7 +83,7 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
         <ToggleButtonGroup
           value={preset}
           exclusive
-          onChange={(_, v) => v && setPreset(v as PresetId)}
+          onChange={(_, v) => setPreset((v ?? preset) as PresetId)}
           orientation="vertical"
           fullWidth
           size="small"

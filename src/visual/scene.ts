@@ -107,12 +107,22 @@ export class VisualizerScene {
             }
           }
 
-          if (uDatamosh > 1.0 && uDatamosh < 3.0) {
+          if (uDatamosh > 2.0 && uDatamosh < 3.0) {
+            vec2 grid = vec2(18.0, 11.0);
+            vec2 block = floor(uv * grid);
+            float blockNoise = rand(block + floor(uTime * 5.0));
+            float blockGate = step(0.54, blockNoise);
+            vec2 blockOffset = vec2(
+              (blockNoise - 0.5) * 0.15,
+              (rand(block.yx + floor(uTime * 4.0)) - 0.5) * 0.075
+            );
+            uv += blockOffset * blockGate * (0.45 + uTransient * 0.55);
+          } else if (uDatamosh > 1.0 && uDatamosh < 3.0) {
             float blockY = floor(uv.y * mix(18.0, 52.0, uTransient));
             float blockNoise = rand(vec2(blockY, floor(uTime * 7.0)));
-            float blockGate = step(0.48, blockNoise);
-            uv.x += (blockNoise - 0.5) * 0.22 * min(uDatamosh, 2.4) * blockGate * (0.45 + uTransient);
-            uv.y += sin(blockY * 1.7 + uTime * 6.0) * 0.012 * uDatamosh * blockGate;
+            float blockGate = step(0.62, blockNoise);
+            uv.x += (blockNoise - 0.5) * 0.12 * min(uDatamosh, 2.0) * blockGate * (0.4 + uTransient * 0.65);
+            uv.y += sin(blockY * 1.7 + uTime * 6.0) * 0.007 * uDatamosh * blockGate;
           }
 
           if (uDatamosh >= 3.0) {
@@ -125,18 +135,30 @@ export class VisualizerScene {
           }
 
           // RGB Split
-          float splitAmt = (uRgbSplit + uChromaticAberration * 0.5) * 0.015;
+          float splitAmt = (uRgbSplit * 0.42 + uChromaticAberration * 0.28) * 0.015;
           float r = texture2D(tDiffuse, uv + vec2(splitAmt, 0.0)).r;
           float g = texture2D(tDiffuse, uv).g;
           float b = texture2D(tDiffuse, uv - vec2(splitAmt, 0.0)).b;
           vec4 color = vec4(r, g, b, 1.0);
+          vec4 liveColor = color;
 
           // Datamosh
           if (uDatamosh > 0.0) {
             vec2 prevUv = uv;
-            if (uDatamosh > 1.0 && uDatamosh < 3.0) {
+            if (uDatamosh > 2.0 && uDatamosh < 3.0) {
+              vec2 grid = vec2(18.0, 11.0);
+              vec2 block = floor(uv * grid);
+              vec2 blockCenter = (block + 0.5) / grid;
+              float blockNoise = rand(block + floor(uTime * 6.0));
+              float blockGate = step(0.5, blockNoise);
+              prevUv = mix(prevUv, blockCenter, 0.42 * blockGate);
+              prevUv += vec2(
+                (blockNoise - 0.5) * 0.11,
+                (rand(block.yx + floor(uTime * 5.0)) - 0.5) * 0.055
+              ) * blockGate;
+            } else if (uDatamosh > 1.0 && uDatamosh < 3.0) {
               float cell = floor(uv.y * 34.0);
-              prevUv.x += (rand(vec2(cell, floor(uTime * 10.0))) - 0.5) * 0.16 * uDatamosh;
+              prevUv.x += (rand(vec2(cell, floor(uTime * 10.0))) - 0.5) * 0.075 * uDatamosh;
             } else if (uDatamosh >= 3.0) {
               float column = floor(uv.x * 38.0);
               float flow = rand(vec2(column, floor(uTime * 2.0)));
@@ -144,13 +166,17 @@ export class VisualizerScene {
               prevUv.x += sin(uv.y * 20.0 + uTime * 4.0 + flow * 8.0) * 0.02;
             }
             vec4 prev = texture2D(tPrev, prevUv);
-            float smear = uDatamosh >= 3.0 ? 0.9 : uDatamosh > 1.0 ? 0.86 : 0.42;
+            float smear = uDatamosh >= 3.0 ? 0.9 : uDatamosh > 2.0 ? 0.48 + uTransient * 0.06 : uDatamosh > 1.0 ? 0.56 + uTransient * 0.08 : 0.42;
             color = mix(color, prev, smear);
             if (uDatamosh >= 3.0) {
               color.rgb = mix(color.rgb, vec3(color.r * 0.85, color.g * 1.08, color.b * 1.18), 0.35);
               color.rgb += prev.rgb * 0.18;
+            } else if (uDatamosh > 2.0) {
+              color.rgb += prev.rgb * 0.045;
+              color.rgb = mix(color.rgb, liveColor.rgb, 0.24);
             } else {
-              color.rgb += prev.rgb * max(0.0, uDatamosh - 1.0) * 0.16;
+              color.rgb += prev.rgb * max(0.0, uDatamosh - 1.0) * 0.055;
+              color.rgb = mix(color.rgb, liveColor.rgb, 0.2);
             }
           }
 
@@ -230,8 +256,7 @@ export class VisualizerScene {
       this.particleSystem.setParticleSize(preset.particleSize * 0.7);
       this.scene.add(this.particleSystem.points);
 
-      // Always create rectangles instead of sphere
-      this.rectGroup = createRectanglesGrid(
+      this.rectGroup = createRandomShapeCloud(
         preset.geometryMode === 'sphere' ? 200 : preset.geometryMode === 'torus' ? 100 : 80,
         preset.particleColor,
         preset.accentColor,
@@ -266,6 +291,7 @@ export class VisualizerScene {
       glitchNoise: boolean;
       datamosh: boolean;
       strongDatamosh?: boolean;
+      blockStrongDatamosh?: boolean;
       meltingDatamosh?: boolean;
       bloom: boolean;
       scanlines?: boolean;
@@ -279,13 +305,13 @@ export class VisualizerScene {
       this.particleSystem.update(this.time, bass, mid, high, transient);
     }
 
-    // Animate rectangles
+    // Animate preset shape cloud
     if (this.rectGroup) {
       const baseRotationSpeed = dt * bpmFactor * 0.3;
       this.rectGroup.rotation.y += baseRotationSpeed;
       this.rectGroup.rotation.x += dt * bpmFactor * 0.15;
 
-      // Animate individual rectangles
+      // Animate individual shapes
       this.rectGroup.children.forEach((child, index) => {
         const mesh = child as THREE.Mesh;
         const mat = mesh.material as THREE.MeshStandardMaterial;
@@ -331,7 +357,15 @@ export class VisualizerScene {
     this.postMaterial.uniforms.uRgbSplit.value = effects.rgbSplit ? 1 : 0;
     this.postMaterial.uniforms.uChromaticAberration.value = effects.chromaticAberration ? 1 : 0;
     this.postMaterial.uniforms.uGlitchNoise.value = effects.glitchNoise ? 1 : 0;
-    this.postMaterial.uniforms.uDatamosh.value = effects.meltingDatamosh ? 3.2 : effects.strongDatamosh ? 2.2 : effects.datamosh ? 1 : 0;
+    this.postMaterial.uniforms.uDatamosh.value = effects.meltingDatamosh
+      ? 3.2
+      : effects.blockStrongDatamosh
+        ? 2.4
+        : effects.strongDatamosh
+          ? 1.6
+          : effects.datamosh
+            ? 1
+            : 0;
     this.postMaterial.uniforms.uScanlines.value = effects.scanlines ? 1 : 0;
     this.postMaterial.uniforms.uTransient.value = transient;
     this.bloomPass.setStrength(bloomStrength);
@@ -571,10 +605,7 @@ function updateWaveformLine(line: THREE.Line, data: Float32Array) {
   positions.needsUpdate = true;
 }
 
-/**
- * Creates a group of random rectangles distributed in 3D space
- */
-function createRectanglesGrid(
+function createRandomShapeCloud(
   count: number,
   colorA: THREE.Color,
   colorB: THREE.Color,
@@ -582,11 +613,9 @@ function createRectanglesGrid(
   const group = new THREE.Group();
 
   for (let i = 0; i < count; i++) {
-    // Random size
     const width = 0.1 + Math.random() * 0.5;
     const height = 0.1 + Math.random() * 0.8;
-
-    const geo = new THREE.PlaneGeometry(width, height);
+    const geo = createRandomShapeGeometry(width, height);
 
     // Mix between two colors
     const t = Math.random();
@@ -630,4 +659,24 @@ function createRectanglesGrid(
   }
 
   return group;
+}
+
+function createRandomShapeGeometry(width: number, height: number): THREE.BufferGeometry {
+  const radius = Math.max(width, height) * 0.5;
+  const shape = Math.floor(Math.random() * 6);
+
+  switch (shape) {
+    case 0:
+      return new THREE.PlaneGeometry(width, height);
+    case 1:
+      return new THREE.CircleGeometry(radius, 3);
+    case 2:
+      return new THREE.CircleGeometry(radius, 5 + Math.floor(Math.random() * 4));
+    case 3:
+      return new THREE.RingGeometry(radius * 0.45, radius, 4 + Math.floor(Math.random() * 5));
+    case 4:
+      return new THREE.BoxGeometry(width, height, 0.04 + Math.random() * 0.12);
+    default:
+      return new THREE.TetrahedronGeometry(radius * (0.75 + Math.random() * 0.45), 0);
+  }
 }

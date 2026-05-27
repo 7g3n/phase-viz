@@ -22,6 +22,7 @@ export interface EffectSettings {
   rgbSplit: boolean;
   datamosh: boolean;
   strongDatamosh: boolean;
+  blockStrongDatamosh: boolean;
   meltingDatamosh: boolean;
   glitchNoise: boolean;
   cameraShake: boolean;
@@ -37,6 +38,7 @@ export interface AppState {
   currentTime: number;
   duration: number;
   preset: PresetId;
+  presetRevision: number;
   effects: EffectSettings;
   isExporting: boolean;
   exportProgress: number;
@@ -69,12 +71,14 @@ export const useStore = create<AppState>((set) => ({
   currentTime: 0,
   duration: 0,
   preset: 'neon',
+  presetRevision: 0,
   effects: {
     bloom: true,
     chromaticAberration: false,
     rgbSplit: false,
     datamosh: false,
     strongDatamosh: false,
+    blockStrongDatamosh: false,
     meltingDatamosh: false,
     glitchNoise: false,
     cameraShake: false,
@@ -92,7 +96,7 @@ export const useStore = create<AppState>((set) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTime: (currentTime) => set({ currentTime }),
   setDuration: (duration) => set({ duration }),
-  setPreset: (preset) => set({ preset }),
+  setPreset: (preset) => set((s) => ({ preset, presetRevision: s.presetRevision + 1 })),
   toggleEffect: (e) =>
     set((s) => ({ effects: { ...s.effects, [e]: !s.effects[e] } })),
   setIsExporting: (isExporting) => set({ isExporting }),
