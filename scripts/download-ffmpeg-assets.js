@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const FFMPEG_CORE_VERSION = '0.12.10';
-const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm'];
+const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm', 'ffmpeg-core.worker.js'];
 // Prefer UMD variants first for worker importScripts compatibility
 const CDN_BASES = [
   `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,

@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const FFMPEG_CORE_PACKAGE = '@ffmpeg/core';
-const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm'];
+const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm', 'ffmpeg-core.worker.js'];
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

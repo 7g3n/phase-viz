@@ -4,17 +4,26 @@ import { FrameRecorder } from './recorder';
 const FFMPEG_CORE_VERSION = '0.12.10';
 const LOCAL_CORE = '/vendor/ffmpeg-core.js';
 const LOCAL_WASM = '/vendor/ffmpeg-core.wasm';
+const LOCAL_WORKER = '/vendor/ffmpeg-core.worker.js';
+// ESM build is more compatible with Worker contexts than UMD
 const CDN_BASE = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
 const R2_ASSET_BASE_URL = import.meta.env.VITE_FFMPEG_ASSET_BASE_URL?.replace(/\/+$/, '');
 
-function createCoreURLs(baseURL: string) {
+interface CoreURLs {
+  coreURL: string;
+  wasmURL: string;
+  workerURL?: string;
+}
+
+function createCoreURLs(baseURL: string): CoreURLs {
   return {
     coreURL: `${baseURL}/ffmpeg-core.js`,
     wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+    // workerURL is only needed for UMD; ESM doesn't use it
   };
 }
 
-async function resolveCoreURLs(signal?: AbortSignal) {
+async function resolveCoreURLs(signal?: AbortSignal): Promise<CoreURLs> {
   if (R2_ASSET_BASE_URL) {
     return createCoreURLs(R2_ASSET_BASE_URL);
   }
@@ -23,7 +32,15 @@ async function resolveCoreURLs(signal?: AbortSignal) {
     // Some proxies/networks behave differently for HEAD requests.
     // Use GET to avoid Cloudflare 522/timeout edge cases.
     const res = await fetch(LOCAL_CORE, { method: 'GET', signal });
-    if (res.ok) return { coreURL: LOCAL_CORE, wasmURL: LOCAL_WASM };
+    if (res.ok) {
+      // Convert relative URLs to absolute for Web Worker compatibility
+      const baseUrl = `${window.location.protocol}//${window.location.host}`;
+      return {
+        coreURL: `${baseUrl}${LOCAL_CORE}`,
+        wasmURL: `${baseUrl}${LOCAL_WASM}`,
+        workerURL: `${baseUrl}/vendor/ffmpeg-core.worker.js`,
+      };
+    }
   } catch {
     // ignore and fallback to remote sources
   }
@@ -74,9 +91,12 @@ async function getFFmpeg(signal?: AbortSignal): Promise<FFmpegType> {
 
 
     try {
-      await ffmpeg.load({ coreURL: urls.coreURL, wasmURL: urls.wasmURL }, { signal });
+      await ffmpeg.load(
+        { coreURL: urls.coreURL, wasmURL: urls.wasmURL, workerURL: urls.workerURL },
+        { signal }
+      );
     } catch (err) {
-      console.error('[ffmpeg] load failed', { coreURL: urls.coreURL, wasmURL: urls.wasmURL, err });
+      console.error('[ffmpeg] load failed', { coreURL: urls.coreURL, wasmURL: urls.wasmURL, workerURL: urls.workerURL, err });
       throw err;
     }
     ffmpegInstance = ffmpeg as unknown as FFmpegType;
