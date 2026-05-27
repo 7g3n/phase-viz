@@ -23,6 +23,7 @@ const EFFECT_LABELS: { key: keyof EffectSettings; label: string }[] = [
   { key: 'rgbSplit', label: 'RGB Split' },
   { key: 'datamosh', label: 'Datamosh' },
   { key: 'strongDatamosh', label: 'Strong Datamosh' },
+  { key: 'meltingDatamosh', label: 'Melt Datamosh' },
   { key: 'glitchNoise', label: 'Glitch' },
   { key: 'cameraShake', label: 'Cam Shake' },
 ];

@@ -107,12 +107,21 @@ export class VisualizerScene {
             }
           }
 
-          if (uDatamosh > 1.0) {
+          if (uDatamosh > 1.0 && uDatamosh < 3.0) {
             float blockY = floor(uv.y * mix(18.0, 52.0, uTransient));
             float blockNoise = rand(vec2(blockY, floor(uTime * 7.0)));
             float blockGate = step(0.48, blockNoise);
             uv.x += (blockNoise - 0.5) * 0.22 * min(uDatamosh, 2.4) * blockGate * (0.45 + uTransient);
             uv.y += sin(blockY * 1.7 + uTime * 6.0) * 0.012 * uDatamosh * blockGate;
+          }
+
+          if (uDatamosh >= 3.0) {
+            float column = floor(uv.x * 44.0);
+            float slowNoise = rand(vec2(column, floor(uTime * 3.0)));
+            float drip = smoothstep(0.12, 1.0, slowNoise + uTransient * 0.55);
+            float wave = sin(uv.y * 16.0 + uTime * 2.5 + slowNoise * 6.2831);
+            uv.x += wave * 0.018 * drip;
+            uv.y -= (0.025 + slowNoise * 0.075) * drip * (0.75 + uTransient);
           }
 
           // RGB Split
@@ -125,14 +134,24 @@ export class VisualizerScene {
           // Datamosh
           if (uDatamosh > 0.0) {
             vec2 prevUv = uv;
-            if (uDatamosh > 1.0) {
+            if (uDatamosh > 1.0 && uDatamosh < 3.0) {
               float cell = floor(uv.y * 34.0);
               prevUv.x += (rand(vec2(cell, floor(uTime * 10.0))) - 0.5) * 0.16 * uDatamosh;
+            } else if (uDatamosh >= 3.0) {
+              float column = floor(uv.x * 38.0);
+              float flow = rand(vec2(column, floor(uTime * 2.0)));
+              prevUv.y -= 0.045 + flow * 0.11 + uTransient * 0.05;
+              prevUv.x += sin(uv.y * 20.0 + uTime * 4.0 + flow * 8.0) * 0.02;
             }
             vec4 prev = texture2D(tPrev, prevUv);
-            float smear = uDatamosh > 1.0 ? 0.86 : 0.42;
+            float smear = uDatamosh >= 3.0 ? 0.9 : uDatamosh > 1.0 ? 0.86 : 0.42;
             color = mix(color, prev, smear);
-            color.rgb += prev.rgb * max(0.0, uDatamosh - 1.0) * 0.16;
+            if (uDatamosh >= 3.0) {
+              color.rgb = mix(color.rgb, vec3(color.r * 0.85, color.g * 1.08, color.b * 1.18), 0.35);
+              color.rgb += prev.rgb * 0.18;
+            } else {
+              color.rgb += prev.rgb * max(0.0, uDatamosh - 1.0) * 0.16;
+            }
           }
 
           // Scanlines
@@ -247,6 +266,7 @@ export class VisualizerScene {
       glitchNoise: boolean;
       datamosh: boolean;
       strongDatamosh?: boolean;
+      meltingDatamosh?: boolean;
       bloom: boolean;
       scanlines?: boolean;
     },
@@ -311,7 +331,7 @@ export class VisualizerScene {
     this.postMaterial.uniforms.uRgbSplit.value = effects.rgbSplit ? 1 : 0;
     this.postMaterial.uniforms.uChromaticAberration.value = effects.chromaticAberration ? 1 : 0;
     this.postMaterial.uniforms.uGlitchNoise.value = effects.glitchNoise ? 1 : 0;
-    this.postMaterial.uniforms.uDatamosh.value = effects.strongDatamosh ? 2.2 : effects.datamosh ? 1 : 0;
+    this.postMaterial.uniforms.uDatamosh.value = effects.meltingDatamosh ? 3.2 : effects.strongDatamosh ? 2.2 : effects.datamosh ? 1 : 0;
     this.postMaterial.uniforms.uScanlines.value = effects.scanlines ? 1 : 0;
     this.postMaterial.uniforms.uTransient.value = transient;
     this.bloomPass.setStrength(bloomStrength);
