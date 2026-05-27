@@ -11,15 +11,19 @@ export class VisualizerScene {
   private rectGroup: THREE.Group | null = null;
   private waveformLine: THREE.Line | null = null;
   private waveformLineR: THREE.Line | null = null;
-  private backgroundMesh: THREE.Mesh | null = null;
   private backgroundTexture: THREE.Texture | null = null;
+  private fallbackBackgroundColor = new THREE.Color(0x050508);
 
   // Post-processing using manual render target approach
   private rtA: THREE.WebGLRenderTarget;
   private rtB: THREE.WebGLRenderTarget;
+  private rtPrevFrame: THREE.WebGLRenderTarget;
+  private rtFinalFrame: THREE.WebGLRenderTarget;
   private postScene: THREE.Scene;
   private postCamera: THREE.OrthographicCamera;
   private postMaterial: THREE.ShaderMaterial;
+  private copyScene: THREE.Scene;
+  private copyMaterial: THREE.MeshBasicMaterial;
   private bloomPass: BloomPass;
 
   private time = 0;
@@ -29,7 +33,7 @@ export class VisualizerScene {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
-      preserveDrawingBuffer: true,
+      preserveDrawingBuffer: false,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
@@ -53,6 +57,8 @@ export class VisualizerScene {
     const h = canvas.clientHeight || 1080;
     this.rtA = new THREE.WebGLRenderTarget(w, h);
     this.rtB = new THREE.WebGLRenderTarget(w, h);
+    this.rtPrevFrame = new THREE.WebGLRenderTarget(w, h);
+    this.rtFinalFrame = new THREE.WebGLRenderTarget(w, h);
 
     // Post-processing quad
     this.postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -101,6 +107,14 @@ export class VisualizerScene {
             }
           }
 
+          if (uDatamosh > 1.0) {
+            float blockY = floor(uv.y * mix(18.0, 52.0, uTransient));
+            float blockNoise = rand(vec2(blockY, floor(uTime * 7.0)));
+            float blockGate = step(0.48, blockNoise);
+            uv.x += (blockNoise - 0.5) * 0.22 * min(uDatamosh, 2.4) * blockGate * (0.45 + uTransient);
+            uv.y += sin(blockY * 1.7 + uTime * 6.0) * 0.012 * uDatamosh * blockGate;
+          }
+
           // RGB Split
           float splitAmt = (uRgbSplit + uChromaticAberration * 0.5) * 0.015;
           float r = texture2D(tDiffuse, uv + vec2(splitAmt, 0.0)).r;
@@ -110,8 +124,15 @@ export class VisualizerScene {
 
           // Datamosh
           if (uDatamosh > 0.0) {
-            vec4 prev = texture2D(tPrev, uv);
-            color = mix(color, prev, uDatamosh * 0.55);
+            vec2 prevUv = uv;
+            if (uDatamosh > 1.0) {
+              float cell = floor(uv.y * 34.0);
+              prevUv.x += (rand(vec2(cell, floor(uTime * 10.0))) - 0.5) * 0.16 * uDatamosh;
+            }
+            vec4 prev = texture2D(tPrev, prevUv);
+            float smear = uDatamosh > 1.0 ? 0.86 : 0.42;
+            color = mix(color, prev, smear);
+            color.rgb += prev.rgb * max(0.0, uDatamosh - 1.0) * 0.16;
           }
 
           // Scanlines
@@ -131,6 +152,10 @@ export class VisualizerScene {
 
     const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.postMaterial);
     this.postScene.add(quad);
+
+    this.copyScene = new THREE.Scene();
+    this.copyMaterial = new THREE.MeshBasicMaterial({ map: this.rtFinalFrame.texture });
+    this.copyScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.copyMaterial));
 
     // Bloom
     this.bloomPass = new BloomPass(w, h);
@@ -169,7 +194,10 @@ export class VisualizerScene {
     }
 
     this.renderer.setClearColor(preset.backgroundColor, 1);
-    this.scene.background = preset.backgroundColor;
+    this.fallbackBackgroundColor = preset.backgroundColor;
+    if (!this.backgroundTexture) {
+      this.scene.background = preset.backgroundColor;
+    }
 
     if (preset.geometryMode === 'particles') {
       this.particleSystem = new ParticleSystem(preset.particleCount);
@@ -218,6 +246,7 @@ export class VisualizerScene {
       chromaticAberration: boolean;
       glitchNoise: boolean;
       datamosh: boolean;
+      strongDatamosh?: boolean;
       bloom: boolean;
       scanlines?: boolean;
     },
@@ -282,7 +311,7 @@ export class VisualizerScene {
     this.postMaterial.uniforms.uRgbSplit.value = effects.rgbSplit ? 1 : 0;
     this.postMaterial.uniforms.uChromaticAberration.value = effects.chromaticAberration ? 1 : 0;
     this.postMaterial.uniforms.uGlitchNoise.value = effects.glitchNoise ? 1 : 0;
-    this.postMaterial.uniforms.uDatamosh.value = effects.datamosh ? 1 : 0;
+    this.postMaterial.uniforms.uDatamosh.value = effects.strongDatamosh ? 2.2 : effects.datamosh ? 1 : 0;
     this.postMaterial.uniforms.uScanlines.value = effects.scanlines ? 1 : 0;
     this.postMaterial.uniforms.uTransient.value = transient;
     this.bloomPass.setStrength(bloomStrength);
@@ -296,11 +325,18 @@ export class VisualizerScene {
     // 2. Bloom pass rtA → rtB
     this.bloomPass.render(this.renderer, this.rtA, this.rtB);
 
-    // 3. Post pass rtB → screen
+    // 3. Post pass rtB + previous frame → final target
     this.postMaterial.uniforms.tDiffuse.value = this.rtB.texture;
-    this.postMaterial.uniforms.tPrev.value = this.rtA.texture;
-    this.renderer.setRenderTarget(null);
+    this.postMaterial.uniforms.tPrev.value = this.rtPrevFrame.texture;
+    this.renderer.setRenderTarget(this.rtFinalFrame);
     this.renderer.render(this.postScene, this.postCamera);
+
+    // 4. Present final frame and keep it for datamosh on the next frame.
+    this.copyMaterial.map = this.rtFinalFrame.texture;
+    this.renderer.setRenderTarget(null);
+    this.renderer.render(this.copyScene, this.postCamera);
+    [this.rtPrevFrame, this.rtFinalFrame] = [this.rtFinalFrame, this.rtPrevFrame];
+    this.copyMaterial.map = this.rtPrevFrame.texture;
   }
 
   resize(width: number, height: number) {
@@ -309,55 +345,54 @@ export class VisualizerScene {
     this.renderer.setSize(width, height);
     this.rtA.setSize(width, height);
     this.rtB.setSize(width, height);
+    this.rtPrevFrame.setSize(width, height);
+    this.rtFinalFrame.setSize(width, height);
     this.bloomPass.setSize(width, height);
 
-    // Update background mesh size
-    if (this.backgroundMesh) {
-      const aspect = width / height;
-      (this.backgroundMesh.material as THREE.MeshBasicMaterial).map?.needsUpdate;
-      this.backgroundMesh.scale.set(aspect > 1 ? aspect : 1, aspect > 1 ? 1 : 1 / aspect, 1);
-    }
+    this.updateBackgroundTextureCover();
   }
 
   setBackgroundImage(url: string | null) {
-    // Remove existing background
-    if (this.backgroundMesh) {
-      this.scene.remove(this.backgroundMesh);
-      this.backgroundMesh.geometry.dispose();
-      (this.backgroundMesh.material as THREE.MeshBasicMaterial).dispose();
-      this.backgroundMesh = null;
-    }
     if (this.backgroundTexture) {
       this.backgroundTexture.dispose();
       this.backgroundTexture = null;
     }
 
     if (!url) {
-      // No background image, use solid color (will be set via preset)
+      this.scene.background = this.fallbackBackgroundColor;
       return;
     }
 
-    // Create background plane at far z
     const loader = new THREE.TextureLoader();
     this.backgroundTexture = loader.load(url, (texture) => {
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
-
-      const w = this.renderer.domElement.width;
-      const h = this.renderer.domElement.height;
-      const aspect = w / h;
-
-      const geo = new THREE.PlaneGeometry(aspect > 1 ? aspect : 1, aspect > 1 ? 1 : 1 / aspect);
-      const mat = new THREE.MeshBasicMaterial({
-        map: texture,
-        depthTest: false,
-        depthWrite: false,
-      });
-      this.backgroundMesh = new THREE.Mesh(geo, mat);
-      this.backgroundMesh.renderOrder = -1000;
-      this.backgroundMesh.position.z = -10;
-      this.scene.add(this.backgroundMesh);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      this.scene.background = texture;
+      this.updateBackgroundTextureCover();
     });
+  }
+
+  private updateBackgroundTextureCover() {
+    const texture = this.backgroundTexture;
+    const image = texture?.image as { width?: number; height?: number } | undefined;
+    if (!texture || !image?.width || !image?.height) return;
+
+    const viewAspect = this.renderer.domElement.width / this.renderer.domElement.height;
+    const imageAspect = image.width / image.height;
+
+    texture.repeat.set(1, 1);
+    texture.offset.set(0, 0);
+
+    if (imageAspect > viewAspect) {
+      texture.repeat.x = viewAspect / imageAspect;
+      texture.offset.x = (1 - texture.repeat.x) / 2;
+    } else {
+      texture.repeat.y = imageAspect / viewAspect;
+      texture.offset.y = (1 - texture.repeat.y) / 2;
+    }
+
+    texture.needsUpdate = true;
   }
 
   dispose() {
@@ -370,12 +405,11 @@ export class VisualizerScene {
     });
     this.rtA.dispose();
     this.rtB.dispose();
+    this.rtPrevFrame.dispose();
+    this.rtFinalFrame.dispose();
+    this.copyMaterial.dispose();
     this.bloomPass.dispose();
     if (this.backgroundTexture) this.backgroundTexture.dispose();
-    if (this.backgroundMesh) {
-      this.backgroundMesh.geometry.dispose();
-      (this.backgroundMesh.material as THREE.Material).dispose();
-    }
     this.renderer.dispose();
   }
 }

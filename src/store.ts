@@ -21,6 +21,7 @@ export interface EffectSettings {
   chromaticAberration: boolean;
   rgbSplit: boolean;
   datamosh: boolean;
+  strongDatamosh: boolean;
   glitchNoise: boolean;
   cameraShake: boolean;
 }
@@ -72,6 +73,7 @@ export const useStore = create<AppState>((set) => ({
     chromaticAberration: false,
     rgbSplit: false,
     datamosh: false,
+    strongDatamosh: false,
     glitchNoise: false,
     cameraShake: false,
   },

@@ -15,21 +15,24 @@ import type { PresetId, EffectSettings } from '../store';
 import { PRESETS } from '../visual/presets';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
+import CancelIcon from '@mui/icons-material/Cancel';
 
 const EFFECT_LABELS: { key: keyof EffectSettings; label: string }[] = [
   { key: 'bloom', label: 'Bloom' },
   { key: 'chromaticAberration', label: 'Chromatic' },
   { key: 'rgbSplit', label: 'RGB Split' },
   { key: 'datamosh', label: 'Datamosh' },
+  { key: 'strongDatamosh', label: 'Strong Datamosh' },
   { key: 'glitchNoise', label: 'Glitch' },
   { key: 'cameraShake', label: 'Cam Shake' },
 ];
 
 interface ControlsProps {
   onExport: () => void;
+  onCancelExport: () => void;
 }
 
-export default function Controls({ onExport }: ControlsProps) {
+export default function Controls({ onExport, onCancelExport }: ControlsProps) {
   const {
     preset,
     effects,
@@ -132,11 +135,22 @@ export default function Controls({ onExport }: ControlsProps) {
 
       {/* Export */}
       {isExporting ? (
-        <Box sx={{ px: 0.5 }}>
+        <Box sx={{ px: 0.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
             Exporting... {Math.round(exportProgress * 100)}%
           </Typography>
           <LinearProgress variant="determinate" value={exportProgress * 100} />
+          <Button
+            variant="outlined"
+            color="error"
+            fullWidth
+            size="small"
+            startIcon={<CancelIcon />}
+            onClick={onCancelExport}
+            sx={{ fontWeight: 600 }}
+          >
+            Cancel
+          </Button>
         </Box>
       ) : (
         <Tooltip title={!analysis ? 'Upload audio first' : 'Export 1080p MP4'}>

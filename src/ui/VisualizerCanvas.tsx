@@ -1,16 +1,18 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
-import { useStore } from '../store';
+import { type AudioAnalysis, useStore } from '../store';
 import { VisualizerScene } from '../visual/scene';
 import { PRESETS } from '../visual/presets';
-import { FrameRecorder } from '../export/recorder';
+import { type ExportFrameRenderer, FrameRecorder } from '../export/recorder';
+import { exportToMP4 } from '../export/ffmpeg';
+import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
 
 interface Props {
   recorderRef: React.MutableRefObject<FrameRecorder | null>;
-  isCapturing: boolean;
+  exportRendererRef: React.MutableRefObject<ExportFrameRenderer | null>;
 }
 
-export default function VisualizerCanvas({ recorderRef, isCapturing }: Props) {
+export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<VisualizerScene | null>(null);
   const rafRef = useRef<number>(0);
@@ -112,9 +114,8 @@ export default function VisualizerCanvas({ recorderRef, isCapturing }: Props) {
   }, [audioBuffer, isPlaying]);
 
   // Animation loop
-  const animate = useCallback(
+  const renderFrame = useCallback(
     (timestamp: number) => {
-      rafRef.current = requestAnimationFrame(animate);
       const scene = sceneRef.current;
       if (!scene) return;
 
@@ -211,6 +212,7 @@ export default function VisualizerCanvas({ recorderRef, isCapturing }: Props) {
           chromaticAberration: effects.chromaticAberration,
           glitchNoise: effects.glitchNoise || presetConfig.useGlitch,
           datamosh: effects.datamosh,
+          strongDatamosh: effects.strongDatamosh,
           bloom: effects.bloom,
           scanlines: presetConfig.useScanlines,
         },
@@ -218,19 +220,88 @@ export default function VisualizerCanvas({ recorderRef, isCapturing }: Props) {
       );
       scene.render();
 
-      // Capture frame if exporting
-      if (isCapturing && recorderRef.current) {
-        recorderRef.current.captureFrame(timestamp);
-      }
     },
-    [analysis, isPlaying, preset, effects, isCapturing, recorderRef, setFps, setCurrentTime],
+    [analysis, isPlaying, preset, effects, setFps, setCurrentTime],
+  );
+
+  const renderExportFrames = useCallback<ExportFrameRenderer>(
+    async ({ duration, fps, onProgress, signal }) => {
+      const scene = sceneRef.current;
+      const recorder = recorderRef.current;
+      const canvas = canvasRef.current;
+      if (!scene || !recorder || !analysis || !canvas) {
+        throw new Error('Visualizer is not ready for export');
+      }
+
+      throwIfAborted(signal);
+      const drawFrame = (time: number, frame: number) => {
+        const data = sampleAnalysisFrame(analysis, time);
+        renderAnalyzedFrame(scene, analysis, preset, effects, data, frame === 0 ? 0 : 1 / fps);
+      };
+
+      if (audioBuffer && canUseWebCodecsMP4()) {
+        try {
+          await exportToMP4WithWebCodecs({
+            canvas,
+            audioBuffer,
+            duration,
+            fps,
+            renderFrame: drawFrame,
+            onProgress,
+            signal,
+          });
+          return;
+        } catch (err) {
+          if (signal?.aborted) throw err;
+          console.warn('Fast WebCodecs export unavailable, falling back to ffmpeg.wasm:', err);
+          onProgress(0);
+        }
+      }
+
+      recorder.clear();
+      const totalFrames = Math.max(1, Math.ceil(duration * fps));
+
+      for (let frame = 0; frame < totalFrames; frame++) {
+        throwIfAborted(signal);
+        const t = frame / fps;
+        drawFrame(t, frame);
+        await recorder.captureFrame(t * 1000);
+        throwIfAborted(signal);
+
+        if (frame % 5 === 0 || frame === totalFrames - 1) {
+          onProgress((frame + 1) / totalFrames * 0.3);
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+
+      if (!audioBuffer) {
+        throw new Error('Audio is not ready for export');
+      }
+      await exportToMP4(recorder, audioBuffer, fps, (p) => {
+        onProgress(0.3 + p * 0.7);
+      }, signal);
+    },
+    [analysis, audioBuffer, effects, preset, recorderRef],
   );
 
   useEffect(() => {
+    exportRendererRef.current = renderExportFrames;
+    return () => {
+      if (exportRendererRef.current === renderExportFrames) {
+        exportRendererRef.current = null;
+      }
+    };
+  }, [exportRendererRef, renderExportFrames]);
+
+  useEffect(() => {
     lastFrameTime.current = performance.now();
-    rafRef.current = requestAnimationFrame(animate);
+    const tick = (timestamp: number) => {
+      renderFrame(timestamp);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [animate]);
+  }, [renderFrame]);
 
   return (
     <Box
@@ -267,4 +338,93 @@ export default function VisualizerCanvas({ recorderRef, isCapturing }: Props) {
       )}
     </Box>
   );
+}
+
+type AnalysisFrame = ReturnType<typeof sampleAnalysisFrame>;
+
+function renderAnalyzedFrame(
+  scene: VisualizerScene,
+  analysis: AudioAnalysis,
+  preset: keyof typeof PRESETS,
+  effects: ReturnType<typeof useStore.getState>['effects'],
+  data: AnalysisFrame,
+  dt: number,
+) {
+  const presetConfig = PRESETS[preset];
+  scene.update(
+    dt,
+    analysis.bpm,
+    data.bass,
+    data.mid,
+    data.high,
+    data.transient,
+    data.waveformL,
+    data.waveformR,
+    {
+      cameraShake: effects.cameraShake,
+      rgbSplit: effects.rgbSplit || presetConfig.useRgbSplit,
+      chromaticAberration: effects.chromaticAberration,
+      glitchNoise: effects.glitchNoise || presetConfig.useGlitch,
+      datamosh: effects.datamosh,
+      strongDatamosh: effects.strongDatamosh,
+      bloom: effects.bloom,
+      scanlines: presetConfig.useScanlines,
+    },
+    effects.bloom ? presetConfig.bloomStrength : 0,
+  );
+  scene.render();
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new DOMException('Export was canceled', 'AbortError');
+  }
+}
+
+function sampleAnalysisFrame(analysis: AudioAnalysis, time: number) {
+  let bass = 0;
+  let mid = 0;
+  let high = 0;
+  const waveformL = new Float32Array(256);
+  const waveformR = new Float32Array(256);
+  const progress = analysis.duration > 0 ? Math.min(time / analysis.duration, 0.999999) : 0;
+  const spectrumIndex = Math.min(
+    Math.floor(progress * analysis.spectrum.length),
+    Math.max(analysis.spectrum.length - 1, 0),
+  );
+  const spectrum = analysis.spectrum[spectrumIndex];
+
+  if (spectrum) {
+    const binCount = spectrum.length;
+    const bassEnd = Math.max(1, Math.floor(binCount * 0.05));
+    const midEnd = Math.max(bassEnd + 1, Math.floor(binCount * 0.35));
+
+    for (let i = 0; i < bassEnd; i++) bass += spectrum[i];
+    bass = Math.min(1, (bass / bassEnd) * 200);
+
+    for (let i = bassEnd; i < midEnd; i++) mid += spectrum[i];
+    mid = Math.min(1, (mid / (midEnd - bassEnd)) * 200);
+
+    for (let i = midEnd; i < binCount; i++) high += spectrum[i];
+    high = Math.min(1, (high / Math.max(1, binCount - midEnd)) * 200);
+  }
+
+  const wf = analysis.waveform;
+  const wfLen = wf.length;
+  if (wfLen > 0) {
+    for (let i = 0; i < waveformL.length; i++) {
+      const idx = Math.floor((progress * wfLen + i) % wfLen);
+      waveformL[i] = wf[idx] ?? 0;
+      waveformR[i] = wf[(idx + Math.floor(wfLen * 0.1)) % wfLen] ?? 0;
+    }
+  }
+
+  return {
+    bass,
+    mid,
+    high,
+    transient: analysis.transientMap[spectrumIndex] ?? 0,
+    waveformL,
+    waveformR,
+  };
 }

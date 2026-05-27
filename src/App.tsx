@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Box from '@mui/material/Box';
@@ -15,53 +15,50 @@ import Uploader from './ui/Uploader';
 import Controls from './ui/Controls';
 import VisualizerCanvas from './ui/VisualizerCanvas';
 import Timeline from './ui/Timeline';
-import { FrameRecorder } from './export/recorder';
-import { exportToMP4 } from './export/ffmpeg';
+import type { ExportFrameRenderer, FrameRecorder } from './export/recorder';
 
 export default function App() {
   const recorderRef = useRef<FrameRecorder | null>(null);
-  const [isCapturing, setIsCapturing] = useState(false);
+  const exportRendererRef = useRef<ExportFrameRenderer | null>(null);
+  const exportAbortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const { audioBuffer, analysis, isFullscreen, setIsFullscreen, setIsExporting, setExportProgress } = useStore();
+  const { audioBuffer, analysis, isExporting, isFullscreen, setIsFullscreen, setIsExporting, setExportProgress } = useStore();
 
   const handleExport = async () => {
-    if (!audioBuffer || !analysis || !recorderRef.current) return;
+    if (isExporting || !audioBuffer || !analysis || !exportRendererRef.current) return;
 
-    const recorder = recorderRef.current;
-    recorder.clear();
+    const abortController = new AbortController();
+    exportAbortRef.current = abortController;
     setIsExporting(true);
-    setIsCapturing(true);
     setExportProgress(0);
 
-    // Record for full duration at 30fps (simulated)
-    const duration = analysis.duration;
     const fps = 30;
-    const totalFrames = Math.floor(duration * fps);
 
-    // Give scene time to render frames
-    let frame = 0;
-    const captureInterval = setInterval(() => {
-      if (frame >= totalFrames) {
-        clearInterval(captureInterval);
-        setIsCapturing(false);
+    try {
+      await exportRendererRef.current({
+        duration: analysis.duration,
+        fps,
+        signal: abortController.signal,
+        onProgress: setExportProgress,
+      });
 
-        exportToMP4(recorder, audioBuffer, fps, (p) => {
-          setExportProgress(p);
-        })
-          .then(() => {
-            setIsExporting(false);
-            setExportProgress(0);
-          })
-          .catch((err) => {
-            console.error('Export failed:', err);
-            setIsExporting(false);
-          });
-        return;
+      setExportProgress(0);
+    } catch (err) {
+      if (!abortController.signal.aborted && !isAbortError(err)) {
+        console.error('Export failed:', err);
       }
-      setExportProgress(frame / totalFrames * 0.3);
-      frame++;
-    }, 1000 / fps);
+    } finally {
+      if (exportAbortRef.current === abortController) {
+        exportAbortRef.current = null;
+      }
+      setIsExporting(false);
+      setExportProgress(0);
+    }
+  };
+
+  const handleCancelExport = () => {
+    exportAbortRef.current?.abort();
   };
 
   const toggleFullscreen = () => {
@@ -169,7 +166,7 @@ export default function App() {
             }}
           >
             <Box sx={{ flex: 1, position: 'relative' }}>
-              <VisualizerCanvas recorderRef={recorderRef} isCapturing={isCapturing} />
+              <VisualizerCanvas recorderRef={recorderRef} exportRendererRef={exportRendererRef} />
 
               {/* Fullscreen toggle */}
               <Tooltip title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
@@ -231,13 +228,17 @@ export default function App() {
                 overflow: 'auto',
               }}
             >
-              <Controls onExport={handleExport} />
+              <Controls onExport={handleExport} onCancelExport={handleCancelExport} />
             </Paper>
           )}
         </Box>
       </Box>
     </ThemeProvider>
   );
+}
+
+function isAbortError(err: unknown) {
+  return err instanceof DOMException && err.name === 'AbortError';
 }
 
 function WaveformMini({ waveform }: { waveform: Float32Array }) {

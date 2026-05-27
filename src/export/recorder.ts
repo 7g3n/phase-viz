@@ -3,6 +3,15 @@ export interface RecorderFrame {
   timeMs: number;
 }
 
+export interface ExportRenderOptions {
+  duration: number;
+  fps: number;
+  onProgress: (progress: number) => void;
+  signal?: AbortSignal;
+}
+
+export type ExportFrameRenderer = (options: ExportRenderOptions) => Promise<void>;
+
 export class FrameRecorder {
   private frames: RecorderFrame[] = [];
   private canvas: HTMLCanvasElement;
@@ -18,8 +27,8 @@ export class FrameRecorder {
           if (blob) this.frames.push({ blob, timeMs });
           resolve();
         },
-        'image/jpeg',
-        0.92,
+        'image/webp',
+        0.8,
       );
     });
   }
