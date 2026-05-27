@@ -1,5 +1,6 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
+import coreURL from '@ffmpeg/core?url';
+import wasmURL from '@ffmpeg/core/wasm?url';
 import { FrameRecorder } from './recorder';
 
 interface FFmpegFrameExportOptions {
@@ -21,14 +22,9 @@ async function getFFmpeg(signal?: AbortSignal): Promise<FFmpeg> {
   if (ffmpegLoadPromise) return ffmpegLoadPromise;
 
   const ffmpeg = new FFmpeg();
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-
   ffmpegLoadPromise = (async () => {
     throwIfAborted(signal);
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    }, { signal });
+    await ffmpeg.load({ coreURL, wasmURL }, { signal });
     ffmpegInstance = ffmpeg;
     return ffmpeg;
   })();
