@@ -1,7 +1,9 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import coreURL from '@ffmpeg/core?url';
-import wasmURL from '@ffmpeg/core/wasm?url';
 import { FrameRecorder } from './recorder';
+
+const FFMPEG_CORE_VERSION = '0.12.10';
+const coreURL = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/ffmpeg-core.js`;
+const wasmURL = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/ffmpeg-core.wasm`;
 
 interface FFmpegFrameExportOptions {
   canvas: HTMLCanvasElement;
