@@ -35,7 +35,7 @@ const client = new S3Client({
   forcePathStyle: false,
 });
 
-const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm', 'ffmpeg-core.worker.js'];
+const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm'];
 
 async function upload(fileName) {
   const key = prefix ? `${prefix}/${fileName}` : fileName;

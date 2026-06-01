@@ -3,15 +3,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const FFMPEG_CORE_VERSION = '0.12.10';
-const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm', 'ffmpeg-core.worker.js'];
-// Prefer UMD variants first for worker importScripts compatibility
+const files = ['ffmpeg-core.js', 'ffmpeg-core.wasm'];
 const CDN_BASES = [
-  `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,
   `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`,
-  `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`,
   `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`,
-  `https://app.unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/files/dist/umd`,
-  `https://app.unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/files/dist/esm`,
 ];
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,6 +23,11 @@ async function download(url, dest) {
 
 async function main() {
   fs.mkdirSync(destDir, { recursive: true });
+  const staleWorker = path.join(destDir, 'ffmpeg-core.worker.js');
+  if (fs.existsSync(staleWorker)) {
+    fs.unlinkSync(staleWorker);
+  }
+
   for (const file of files) {
     const dest = path.join(destDir, file);
     let saved = false;

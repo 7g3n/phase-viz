@@ -4,7 +4,6 @@ import { FrameRecorder } from './recorder';
 const FFMPEG_CORE_VERSION = '0.12.10';
 const LOCAL_CORE = '/vendor/ffmpeg-core.js';
 const LOCAL_WASM = '/vendor/ffmpeg-core.wasm';
-const LOCAL_WORKER = '/vendor/ffmpeg-core.worker.js';
 // ESM build is more compatible with Worker contexts than UMD
 const CDN_BASE = `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
 const R2_ASSET_BASE_URL = import.meta.env.VITE_FFMPEG_ASSET_BASE_URL?.replace(/\/+$/, '');
@@ -38,7 +37,6 @@ async function resolveCoreURLs(signal?: AbortSignal): Promise<CoreURLs> {
       return {
         coreURL: `${baseUrl}${LOCAL_CORE}`,
         wasmURL: `${baseUrl}${LOCAL_WASM}`,
-        workerURL: `${baseUrl}/vendor/ffmpeg-core.worker.js`,
       };
     }
   } catch {
