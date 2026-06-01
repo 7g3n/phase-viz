@@ -29,16 +29,39 @@ function createLocalCoreURLs(): CoreURLs {
   };
 }
 
+async function hasUsableLocalCore(signal?: AbortSignal): Promise<boolean> {
+  const [coreRes, wasmHeadRes] = await Promise.all([
+    fetch(LOCAL_CORE, { method: 'GET', signal }),
+    fetch(LOCAL_WASM, { method: 'HEAD', signal }),
+  ]);
+
+  if (!coreRes.ok || !wasmHeadRes.ok) return false;
+
+  const coreType = coreRes.headers.get('Content-Type')?.toLowerCase() ?? '';
+  const wasmType = wasmHeadRes.headers.get('Content-Type')?.toLowerCase() ?? '';
+  if (coreType.includes('text/html') || wasmType.includes('text/html')) {
+    return false;
+  }
+  if (wasmType.includes('application/wasm')) {
+    return true;
+  }
+
+  const wasmProbeRes = await fetch(LOCAL_WASM, {
+    headers: { Range: 'bytes=0-3' },
+    signal,
+  });
+  if (!wasmProbeRes.ok && wasmProbeRes.status !== 206) return false;
+
+  const bytes = new Uint8Array(await wasmProbeRes.arrayBuffer());
+  return bytes[0] === 0x00 && bytes[1] === 0x61 && bytes[2] === 0x73 && bytes[3] === 0x6d;
+}
+
 async function resolveCoreURLs(signal?: AbortSignal): Promise<CoreURLs> {
   try {
     // Prefer same-origin bundled assets when both files are deployable. The wasm
     // file exceeds Cloudflare Workers Static Assets' 25 MiB per-file limit, so
-    // production builds may exclude it and fall back to the CDN pair below.
-    const [coreRes, wasmRes] = await Promise.all([
-      fetch(LOCAL_CORE, { method: 'GET', signal }),
-      fetch(LOCAL_WASM, { method: 'HEAD', signal }),
-    ]);
-    if (coreRes.ok && wasmRes.ok) {
+    // production builds may serve index.html for that path via SPA fallback.
+    if (await hasUsableLocalCore(signal)) {
       return createLocalCoreURLs();
     }
   } catch {
