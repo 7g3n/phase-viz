@@ -10,9 +10,16 @@ import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
 import LinearProgress from '@mui/material/LinearProgress';
+import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
 import { useStore } from '../store';
-import type { PresetId, EffectSettings } from '../store';
+import type {
+  DisplayMode,
+  EffectSettings,
+  PresetId,
+  WaveBackgroundMode,
+  WaveVisualizerType,
+} from '../store';
 import { PRESETS } from '../visual/presets';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
@@ -38,6 +45,7 @@ interface ControlsProps {
 export default function Controls({ onExport, onCancelExport }: ControlsProps) {
   const {
     preset,
+    displayMode,
     effects,
     analysis,
     isExporting,
@@ -47,12 +55,53 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
     exportDownloadUrl,
     exportDownloadName,
     fps,
+    particleSettings,
+    waveSettings,
+    backgroundImageUrl,
+    setDisplayMode,
     setPreset,
     toggleEffect,
+    setParticleCountScale,
+    setParticleSizeScale,
+    setWaveType,
+    setWaveBackgroundMode,
   } = useStore();
+  const activePreset = PRESETS[preset];
+  const visibleParticleCount = Math.round(
+    activePreset.particleCount
+      * particleSettings.countScale
+      * (activePreset.geometryMode === 'particles' ? 1 : 0.3),
+  );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%', overflow: 'auto', pr: 0.5 }}>
+      {/* Display mode */}
+      <Paper elevation={0} sx={{ p: 1.5 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
+          Display Mode
+        </Typography>
+        <ToggleButtonGroup
+          value={displayMode}
+          exclusive
+          onChange={(_, value) => value && setDisplayMode(value as DisplayMode)}
+          orientation="vertical"
+          fullWidth
+          size="small"
+          disabled={isExporting}
+        >
+          <ToggleButton value="visualizer3d" sx={{ justifyContent: 'flex-start', px: 1.5, py: 0.75 }}>
+            <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600 }}>
+              3D Visualizer
+            </Typography>
+          </ToggleButton>
+          <ToggleButton value="wave" sx={{ justifyContent: 'flex-start', px: 1.5, py: 0.75 }}>
+            <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600 }}>
+              Wave Visualizer Mode
+            </Typography>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Paper>
+
       {/* Analysis Stats */}
       {analysis && (
         <Paper elevation={0} sx={{ p: 1.5, bgcolor: 'background.paper' }}>
@@ -80,57 +129,143 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
         </Paper>
       )}
 
-      {/* Presets */}
-      <Paper elevation={0} sx={{ p: 1.5 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
-          Preset
-        </Typography>
-        <ToggleButtonGroup
-          value={preset}
-          exclusive
-          onChange={(_, v) => setPreset((v ?? preset) as PresetId)}
-          orientation="vertical"
-          fullWidth
-          size="small"
-        >
-          {Object.values(PRESETS).map((p) => (
-            <ToggleButton key={p.id} value={p.id} sx={{ justifyContent: 'flex-start', px: 1.5, py: 0.75 }}>
-              <Box>
-                <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600, textAlign: 'left' }}>
-                  {p.label}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-                  {p.description}
-                </Typography>
-              </Box>
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
-      </Paper>
+      {displayMode === 'visualizer3d' ? (
+        <>
+          {/* Presets */}
+          <Paper elevation={0} sx={{ p: 1.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
+              Preset
+            </Typography>
+            <ToggleButtonGroup
+              value={preset}
+              exclusive
+              onChange={(_, v) => setPreset((v ?? preset) as PresetId)}
+              orientation="vertical"
+              fullWidth
+              size="small"
+              disabled={isExporting}
+            >
+              {Object.values(PRESETS).map((p) => (
+                <ToggleButton key={p.id} value={p.id} sx={{ justifyContent: 'flex-start', px: 1.5, py: 0.75 }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600, textAlign: 'left' }}>
+                      {p.label}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                      {p.description}
+                    </Typography>
+                  </Box>
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </Paper>
 
-      {/* Effects */}
-      <Paper elevation={0} sx={{ p: 1.5 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 0.5 }}>
-          Effects
-        </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-          {EFFECT_LABELS.map(({ key, label }) => (
-            <FormControlLabel
-              key={key}
-              control={
-                <Switch
-                  size="small"
-                  checked={effects[key]}
-                  onChange={() => toggleEffect(key)}
-                  sx={{ '& .MuiSwitch-thumb': { width: 12, height: 12 }, '& .MuiSwitch-track': { borderRadius: 6 } }}
-                />
-              }
-              label={<Typography variant="caption" sx={{ fontSize: 11 }}>{label}</Typography>}
-              sx={{ m: 0, py: 0.25 }}
+          {/* Particles */}
+          <Paper elevation={0} sx={{ p: 1.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
+              Particles
+            </Typography>
+            <ParticleSlider
+              label="Count"
+              value={particleSettings.countScale}
+              valueLabel={formatParticleCount(visibleParticleCount)}
+              min={0.25}
+              max={2.5}
+              step={0.05}
+              disabled={isExporting}
+              onChange={setParticleCountScale}
             />
-          ))}
-        </Box>
-      </Paper>
+            <ParticleSlider
+              label="Size"
+              value={particleSettings.sizeScale}
+              valueLabel={`${Math.round(particleSettings.sizeScale * 100)}%`}
+              min={0.35}
+              max={2}
+              step={0.05}
+              disabled={isExporting}
+              onChange={setParticleSizeScale}
+            />
+          </Paper>
+
+          {/* Effects */}
+          <Paper elevation={0} sx={{ p: 1.5 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 0.5 }}>
+              Effects
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              {EFFECT_LABELS.map(({ key, label }) => (
+                <FormControlLabel
+                  key={key}
+                  control={
+                    <Switch
+                      size="small"
+                      checked={effects[key]}
+                      onChange={() => toggleEffect(key)}
+                      sx={{ '& .MuiSwitch-thumb': { width: 12, height: 12 }, '& .MuiSwitch-track': { borderRadius: 6 } }}
+                    />
+                  }
+                  label={<Typography variant="caption" sx={{ fontSize: 11 }}>{label}</Typography>}
+                  sx={{ m: 0, py: 0.25 }}
+                />
+              ))}
+            </Box>
+          </Paper>
+        </>
+      ) : (
+        <Paper elevation={0} sx={{ p: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
+            Wave
+          </Typography>
+          <ToggleButtonGroup
+            value={waveSettings.type}
+            exclusive
+            onChange={(_, value) => value && setWaveType(value as WaveVisualizerType)}
+            orientation="vertical"
+            fullWidth
+            size="small"
+            disabled={isExporting}
+          >
+            <ToggleButton value="horizontal" sx={{ justifyContent: 'flex-start', px: 1.5, py: 0.65 }}>
+              <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600 }}>
+                Horizontal Wave
+              </Typography>
+            </ToggleButton>
+            <ToggleButton value="circular" sx={{ justifyContent: 'flex-start', px: 1.5, py: 0.65 }}>
+              <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600 }}>
+                Circular Wave
+              </Typography>
+            </ToggleButton>
+            <ToggleButton value="bars" sx={{ justifyContent: 'flex-start', px: 1.5, py: 0.65 }}>
+              <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600 }}>
+                Spectrum Bars
+              </Typography>
+            </ToggleButton>
+          </ToggleButtonGroup>
+
+          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mt: 1.5, mb: 1 }}>
+            Background
+          </Typography>
+          <ToggleButtonGroup
+            value={waveSettings.backgroundMode}
+            exclusive
+            onChange={(_, value) => value && setWaveBackgroundMode(value as WaveBackgroundMode)}
+            fullWidth
+            size="small"
+            disabled={isExporting}
+          >
+            <ToggleButton value="solid" sx={{ px: 1, py: 0.65 }}>
+              <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600 }}>
+                Solid
+              </Typography>
+            </ToggleButton>
+            <ToggleButton value="image" disabled={!backgroundImageUrl} sx={{ px: 1, py: 0.65 }}>
+              <Typography variant="body2" sx={{ fontSize: 11, fontWeight: 600 }}>
+                Image
+              </Typography>
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Paper>
+      )}
 
       <Divider />
 
@@ -206,6 +341,55 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
       )}
     </Box>
   );
+}
+
+function ParticleSlider({
+  label,
+  value,
+  valueLabel,
+  min,
+  max,
+  step,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  valueLabel: string;
+  min: number;
+  max: number;
+  step: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <Box sx={{ '& + &': { mt: 1.25 } }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.25 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+          {label}
+        </Typography>
+        <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600 }}>
+          {valueLabel}
+        </Typography>
+      </Box>
+      <Slider
+        size="small"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        onChange={(_, nextValue) => onChange(Array.isArray(nextValue) ? nextValue[0] : nextValue)}
+        sx={{ py: 0.5 }}
+      />
+    </Box>
+  );
+}
+
+function formatParticleCount(count: number) {
+  if (count >= 10000) return `${Math.round(count / 1000)}k`;
+  if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+  return String(count);
 }
 
 function StatItem({ label, value }: { label: string; value: string }) {

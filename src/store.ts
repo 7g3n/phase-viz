@@ -3,6 +3,9 @@ import { create } from 'zustand';
 export type PresetId = 'minimal' | 'neon' | 'glitch' | 'organic';
 export type MoodId = 'calm' | 'aggressive' | 'emotional' | 'dark' | 'bright';
 export type EnergyLevel = 'low' | 'medium' | 'high';
+export type DisplayMode = 'visualizer3d' | 'wave';
+export type WaveVisualizerType = 'horizontal' | 'circular' | 'bars';
+export type WaveBackgroundMode = 'solid' | 'image';
 
 export interface AudioAnalysis {
   bpm: number;
@@ -29,6 +32,16 @@ export interface EffectSettings {
   cameraShake: boolean;
 }
 
+export interface ParticleSettings {
+  countScale: number;
+  sizeScale: number;
+}
+
+export interface WaveVisualizerSettings {
+  type: WaveVisualizerType;
+  backgroundMode: WaveBackgroundMode;
+}
+
 export interface AppState {
   audioFile: File | null;
   audioBuffer: AudioBuffer | null;
@@ -38,9 +51,12 @@ export interface AppState {
   isPlaying: boolean;
   currentTime: number;
   duration: number;
+  displayMode: DisplayMode;
   preset: PresetId;
   presetRevision: number;
   effects: EffectSettings;
+  particleSettings: ParticleSettings;
+  waveSettings: WaveVisualizerSettings;
   isExporting: boolean;
   exportProgress: number;
   exportError: string | null;
@@ -58,8 +74,13 @@ export interface AppState {
   setIsPlaying: (v: boolean) => void;
   setCurrentTime: (t: number) => void;
   setDuration: (d: number) => void;
+  setDisplayMode: (mode: DisplayMode) => void;
   setPreset: (p: PresetId) => void;
   toggleEffect: (e: keyof EffectSettings) => void;
+  setParticleCountScale: (value: number) => void;
+  setParticleSizeScale: (value: number) => void;
+  setWaveType: (type: WaveVisualizerType) => void;
+  setWaveBackgroundMode: (mode: WaveBackgroundMode) => void;
   setIsExporting: (v: boolean) => void;
   setExportProgress: (p: number) => void;
   setExportError: (message: string | null) => void;
@@ -78,6 +99,7 @@ export const useStore = create<AppState>((set) => ({
   isPlaying: false,
   currentTime: 0,
   duration: 0,
+  displayMode: 'visualizer3d',
   preset: 'neon',
   presetRevision: 0,
   effects: {
@@ -91,6 +113,14 @@ export const useStore = create<AppState>((set) => ({
     meltingDatamosh: false,
     glitchNoise: false,
     cameraShake: false,
+  },
+  particleSettings: {
+    countScale: 1,
+    sizeScale: 1,
+  },
+  waveSettings: {
+    type: 'horizontal',
+    backgroundMode: 'solid',
   },
   isExporting: false,
   exportProgress: 0,
@@ -109,9 +139,18 @@ export const useStore = create<AppState>((set) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setCurrentTime: (currentTime) => set({ currentTime }),
   setDuration: (duration) => set({ duration }),
+  setDisplayMode: (displayMode) => set({ displayMode }),
   setPreset: (preset) => set((s) => ({ preset, presetRevision: s.presetRevision + 1 })),
   toggleEffect: (e) =>
     set((s) => ({ effects: { ...s.effects, [e]: !s.effects[e] } })),
+  setParticleCountScale: (countScale) =>
+    set((s) => ({ particleSettings: { ...s.particleSettings, countScale } })),
+  setParticleSizeScale: (sizeScale) =>
+    set((s) => ({ particleSettings: { ...s.particleSettings, sizeScale } })),
+  setWaveType: (type) =>
+    set((s) => ({ waveSettings: { ...s.waveSettings, type } })),
+  setWaveBackgroundMode: (backgroundMode) =>
+    set((s) => ({ waveSettings: { ...s.waveSettings, backgroundMode } })),
   setIsExporting: (isExporting) => set({ isExporting }),
   setExportProgress: (exportProgress) => set({ exportProgress }),
   setExportError: (exportError) => set({ exportError }),

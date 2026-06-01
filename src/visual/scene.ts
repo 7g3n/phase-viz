@@ -310,6 +310,10 @@ export class VisualizerScene {
     }
   }
 
+  setParticleSize(size: number) {
+    this.particleSystem?.setParticleSize(size);
+  }
+
   update(
     dt: number,
     bpm: number,

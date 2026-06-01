@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import { type AudioAnalysis, useStore } from '../store';
 import { VisualizerScene } from '../visual/scene';
-import { PRESETS } from '../visual/presets';
+import { PRESETS, type PresetConfig } from '../visual/presets';
 import { type ExportFrameRenderer, FrameRecorder } from '../export/recorder';
 import { exportToMP4WithFFmpegFrames } from '../export/ffmpeg';
 import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
@@ -34,6 +34,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
   const liveFrameRef = useRef<AnalysisFrame | null>(null);
   const freqDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const timeDomainRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  const particleSizeScaleRef = useRef(useStore.getState().particleSettings.sizeScale);
 
   const {
     analysis,
@@ -42,6 +43,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
     preset,
     presetRevision,
     effects,
+    particleSettings,
     backgroundImageUrl,
     setFps,
     setCurrentTime,
@@ -80,8 +82,15 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
   // Apply preset when it changes
   useEffect(() => {
     if (!sceneRef.current) return;
-    sceneRef.current.applyPreset(PRESETS[preset]);
-  }, [preset, presetRevision]);
+    sceneRef.current.applyPreset(
+      createParticleAdjustedPreset(PRESETS[preset], particleSettings.countScale, particleSizeScaleRef.current),
+    );
+  }, [preset, presetRevision, particleSettings.countScale]);
+
+  useEffect(() => {
+    particleSizeScaleRef.current = particleSettings.sizeScale;
+    sceneRef.current?.setParticleSize(getEffectiveParticleSize(PRESETS[preset], particleSettings.sizeScale));
+  }, [preset, particleSettings.sizeScale]);
 
   // Apply background image when it changes
   useEffect(() => {
@@ -381,6 +390,27 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
       )}
     </Box>
   );
+}
+
+function createParticleAdjustedPreset(
+  preset: PresetConfig,
+  countScale: number,
+  sizeScale: number,
+): PresetConfig {
+  return {
+    ...preset,
+    particleCount: clampInteger(preset.particleCount * countScale, 500, 80000),
+    particleSize: Math.max(0.04, preset.particleSize * sizeScale),
+  };
+}
+
+function getEffectiveParticleSize(preset: PresetConfig, sizeScale: number) {
+  const geometryScale = preset.geometryMode === 'particles' ? 1 : 0.7;
+  return Math.max(0.04, preset.particleSize * sizeScale * geometryScale);
+}
+
+function clampInteger(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, Math.round(value)));
 }
 
 interface AnalysisFrame {
