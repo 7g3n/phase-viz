@@ -60,12 +60,11 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
     }
 
     const onResize = () => {
+      if (useStore.getState().isExporting) return;
       const el = canvas.parentElement;
       if (!el) return;
       const w = el.clientWidth;
       const h = el.clientHeight;
-      canvas.width = w;
-      canvas.height = h;
       scene.resize(w, h);
     };
     onResize();
@@ -266,6 +265,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
         const exportFrame = createReusableAnalysisFrame();
         const exportLookup = createAnalysisLookup(analysis);
         const drawFrame = (time: number, frame: number) => {
+          scene.resize(EXPORT_WIDTH, EXPORT_HEIGHT);
           sampleAnalysisFrameInto(analysis, time, exportFrame, exportLookup);
           renderAnalyzedFrame(scene, analysis, preset, effects, exportFrame, frame === 0 ? 0 : 1 / fps);
         };

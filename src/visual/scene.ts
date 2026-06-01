@@ -34,6 +34,9 @@ export class VisualizerScene {
   private wasDatamoshActive = false;
 
   constructor(canvas: HTMLCanvasElement) {
+    const initialWidth = Math.max(1, Math.floor(canvas.clientWidth || 1920));
+    const initialHeight = Math.max(1, Math.floor(canvas.clientHeight || 1080));
+
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: false,
@@ -43,13 +46,13 @@ export class VisualizerScene {
       stencil: false,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    this.renderer.setSize(initialWidth, initialHeight, false);
     this.renderer.setClearColor(0x050508, 1);
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
       75,
-      canvas.clientWidth / canvas.clientHeight,
+      initialWidth / initialHeight,
       0.1,
       1000,
     );
@@ -60,8 +63,8 @@ export class VisualizerScene {
     this.scene.add(ambient);
 
     // Render targets for post-processing
-    const w = canvas.clientWidth || 1920;
-    const h = canvas.clientHeight || 1080;
+    const w = initialWidth;
+    const h = initialHeight;
     this.rtA = new THREE.WebGLRenderTarget(w, h, { stencilBuffer: false });
     this.rtB = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false, stencilBuffer: false });
     this.rtPrevFrame = new THREE.WebGLRenderTarget(w, h, { depthBuffer: false, stencilBuffer: false });
@@ -463,14 +466,17 @@ export class VisualizerScene {
   }
 
   resize(width: number, height: number) {
-    this.camera.aspect = width / height;
+    const safeWidth = Math.max(1, Math.floor(width));
+    const safeHeight = Math.max(1, Math.floor(height));
+
+    this.camera.aspect = safeWidth / safeHeight;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height, false);
-    this.rtA.setSize(width, height);
-    this.rtB.setSize(width, height);
-    this.rtPrevFrame.setSize(width, height);
-    this.rtFinalFrame.setSize(width, height);
-    this.bloomPass.setSize(width, height);
+    this.renderer.setSize(safeWidth, safeHeight, false);
+    this.rtA.setSize(safeWidth, safeHeight);
+    this.rtB.setSize(safeWidth, safeHeight);
+    this.rtPrevFrame.setSize(safeWidth, safeHeight);
+    this.rtFinalFrame.setSize(safeWidth, safeHeight);
+    this.bloomPass.setSize(safeWidth, safeHeight);
 
     this.updateBackgroundTextureCover();
   }

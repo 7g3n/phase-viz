@@ -354,10 +354,12 @@ function captureCanvasJpeg(
   timeMs: number,
   captureCanvas: HTMLCanvasElement,
 ): Promise<Uint8Array> {
-  const width = sourceCanvas.width || sourceCanvas.clientWidth;
-  const height = sourceCanvas.height || sourceCanvas.clientHeight;
+  const width = sourceCanvas.width;
+  const height = sourceCanvas.height;
   if (width <= 0 || height <= 0) {
-    return Promise.reject(new Error(`Could not capture export frame at ${Math.round(timeMs)}ms: canvas is empty`));
+    return Promise.reject(new Error(
+      `Could not capture export frame at ${Math.round(timeMs)}ms: canvas backing buffer is empty`,
+    ));
   }
 
   if (captureCanvas.width !== width || captureCanvas.height !== height) {
