@@ -22,27 +22,29 @@ function createCoreURLs(baseURL: string): CoreURLs {
   };
 }
 
-async function resolveCoreURLs(signal?: AbortSignal): Promise<CoreURLs> {
-  if (R2_ASSET_BASE_URL) {
-    return createCoreURLs(R2_ASSET_BASE_URL);
-  }
+function createLocalCoreURLs(): CoreURLs {
+  const baseUrl = `${window.location.protocol}//${window.location.host}`;
+  return {
+    coreURL: `${baseUrl}${LOCAL_CORE}`,
+    wasmURL: `${baseUrl}${LOCAL_WASM}`,
+  };
+}
 
+async function resolveCoreURLs(signal?: AbortSignal): Promise<CoreURLs> {
   try {
-    // Some proxies/networks behave differently for HEAD requests.
-    // Use GET to avoid Cloudflare 522/timeout edge cases.
+    // Prefer same-origin bundled assets. Remote R2/CDN assets can hit
+    // Cloudflare 522 timeouts, while public/vendor is shipped with the app.
     const res = await fetch(LOCAL_CORE, { method: 'GET', signal });
     if (res.ok) {
-      // Convert relative URLs to absolute for Web Worker compatibility
-      const baseUrl = `${window.location.protocol}//${window.location.host}`;
-      return {
-        coreURL: `${baseUrl}${LOCAL_CORE}`,
-        wasmURL: `${baseUrl}${LOCAL_WASM}`,
-      };
+      return createLocalCoreURLs();
     }
   } catch {
     // ignore and fallback to remote sources
   }
 
+  if (R2_ASSET_BASE_URL) {
+    return createCoreURLs(R2_ASSET_BASE_URL);
+  }
 
   return createCoreURLs(CDN_BASE);
 }
