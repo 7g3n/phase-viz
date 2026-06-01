@@ -82,6 +82,15 @@ interface FFmpegFrameExportOptions {
   signal?: AbortSignal;
 }
 
+interface EncodeOptions {
+  exportId: string;
+  audioFile: string;
+  outputFile: string;
+  totalFrames: number;
+  fps: number;
+  signal?: AbortSignal;
+}
+
 let ffmpegInstance: FFmpegType | null = null;
 let ffmpegLoadPromise: Promise<FFmpegType> | null = null;
 
@@ -216,21 +225,14 @@ export async function exportToMP4WithFFmpegFrames({
 
     try {
       onStatus?.('Encoding MP4 fallback...');
-      await ffmpeg.exec([
-        '-framerate', String(fps),
-        '-i', `${exportId}-%06d.jpg`,
-        '-i', audioFile,
-        '-frames:v', String(totalFrames),
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '28',
-        '-c:a', 'aac',
-        '-b:a', '160k',
-        '-pix_fmt', 'yuv420p',
-        '-shortest',
-        '-y',
+      await encodeMP4WithFallbacks(ffmpeg, {
+        exportId,
+        audioFile,
         outputFile,
-      ], -1, { signal });
+        totalFrames,
+        fps,
+        signal,
+      });
     } finally {
       ffmpeg.off('progress', onFfmpegProgress);
     }
@@ -241,9 +243,7 @@ export async function exportToMP4WithFFmpegFrames({
     const rawData = await ffmpeg.readFile(outputFile, 'binary', { signal });
     throwIfAborted(signal);
     const blob = makeMP4Blob(rawData);
-    if (blob.size < 1024) {
-      throw new Error('FFmpeg finished without a valid MP4 payload');
-    }
+    assertValidMP4(rawData);
     onProgress(1);
     return blob;
   } finally {
@@ -312,21 +312,14 @@ export async function exportToMP4(
     ffmpeg.on('progress', onFfmpegProgress);
 
     try {
-      await ffmpeg.exec([
-        '-framerate', String(fps),
-        '-i', `${exportId}-%06d.jpg`,
-        '-i', audioFile,
-        '-frames:v', String(frames.length),
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '28',
-        '-c:a', 'aac',
-        '-b:a', '160k',
-        '-pix_fmt', 'yuv420p',
-        '-shortest',
-        '-y',
+      await encodeMP4WithFallbacks(ffmpeg, {
+        exportId,
+        audioFile,
         outputFile,
-      ], -1, { signal });
+        totalFrames: frames.length,
+        fps,
+        signal,
+      });
     } finally {
       ffmpeg.off('progress', onFfmpegProgress);
     }
@@ -337,9 +330,7 @@ export async function exportToMP4(
     const rawData = await ffmpeg.readFile(outputFile, 'binary', { signal });
     throwIfAborted(signal);
     const blob = makeMP4Blob(rawData);
-    if (blob.size < 1024) {
-      throw new Error('FFmpeg finished without a valid MP4 payload');
-    }
+    assertValidMP4(rawData);
     outputBlob = blob;
   } finally {
     signal?.removeEventListener('abort', terminateOnAbort);
@@ -371,10 +362,116 @@ function captureCanvasJpeg(canvas: HTMLCanvasElement, timeMs: number): Promise<U
 }
 
 function makeMP4Blob(rawData: Uint8Array | string) {
-  const uint8 = rawData instanceof Uint8Array
-    ? rawData
-    : new TextEncoder().encode(rawData);
+  const uint8 = toUint8Array(rawData);
   return new Blob([toArrayBuffer(uint8)], { type: 'video/mp4' });
+}
+
+async function encodeMP4WithFallbacks(
+  ffmpeg: FFmpegType,
+  options: EncodeOptions,
+) {
+  const attempts = [
+    {
+      label: 'h264',
+      args: createEncodeArgs(options, [
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '28',
+      ]),
+    },
+    {
+      label: 'mpeg4',
+      args: createEncodeArgs(options, [
+        '-c:v', 'mpeg4',
+        '-q:v', '5',
+      ]),
+    },
+  ];
+
+  let lastError: Error | null = null;
+  for (const attempt of attempts) {
+    try {
+      await ffmpeg.deleteFile(options.outputFile, { signal: options.signal }).catch(() => false);
+      await execFFmpeg(ffmpeg, attempt.args, attempt.label, options.signal);
+      return;
+    } catch (err) {
+      if (options.signal?.aborted) throw err;
+      lastError = toError(err);
+    }
+  }
+
+  throw lastError ?? new Error('FFmpeg failed to encode MP4');
+}
+
+function createEncodeArgs(
+  { exportId, audioFile, outputFile, totalFrames, fps }: EncodeOptions,
+  videoCodecArgs: string[],
+) {
+  return [
+    '-hide_banner',
+    '-loglevel', 'warning',
+    '-framerate', String(fps),
+    '-start_number', '0',
+    '-i', `${exportId}-%06d.jpg`,
+    '-i', audioFile,
+    '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p',
+    '-frames:v', String(totalFrames),
+    ...videoCodecArgs,
+    '-c:a', 'aac',
+    '-b:a', '160k',
+    '-shortest',
+    '-movflags', '+faststart',
+    '-y',
+    outputFile,
+  ];
+}
+
+async function execFFmpeg(
+  ffmpeg: FFmpegType,
+  args: string[],
+  label: string,
+  signal?: AbortSignal,
+) {
+  const logs: string[] = [];
+  const onLog = ({ type, message }: { type: string; message: string }) => {
+    if (!message) return;
+    logs.push(`[${type}] ${message}`);
+    if (logs.length > 80) logs.shift();
+  };
+
+  ffmpeg.on('log', onLog);
+  try {
+    const exitCode = await ffmpeg.exec(args, -1, { signal });
+    if (exitCode !== 0) {
+      const detail = logs.length ? `: ${logs.slice(-12).join('\n')}` : '';
+      throw new Error(`FFmpeg ${label} encode exited with code ${exitCode}${detail}`);
+    }
+  } finally {
+    ffmpeg.off('log', onLog);
+  }
+}
+
+function assertValidMP4(rawData: Uint8Array | string) {
+  const uint8 = toUint8Array(rawData);
+  if (
+    uint8.byteLength < 12 ||
+    uint8[4] !== 0x66 ||
+    uint8[5] !== 0x74 ||
+    uint8[6] !== 0x79 ||
+    uint8[7] !== 0x70
+  ) {
+    throw new Error(`FFmpeg finished without a valid MP4 payload (${uint8.byteLength} bytes)`);
+  }
+}
+
+function toUint8Array(rawData: Uint8Array | string) {
+  return rawData instanceof Uint8Array
+    ? rawData
+    : Uint8Array.from(rawData, (char) => char.charCodeAt(0) & 0xff);
+}
+
+function toError(err: unknown) {
+  return err instanceof Error ? err : new Error(String(err));
 }
 
 function toArrayBuffer(uint8: Uint8Array): ArrayBuffer {
