@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import Box from '@mui/material/Box';
-import { type AudioAnalysis, type ImageFxSettings, useStore } from '../store';
+import { type AudioAnalysis, type EffectSettings, type ImageFxSettings, useStore } from '../store';
 import { type ExportFrameRenderer } from '../export/recorder';
 import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
 import { exportToMP4WithFFmpegFrames } from '../export/ffmpeg';
@@ -38,6 +38,8 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
   const rafRef = useRef<number>(0);
   const backgroundImageRef = useRef<HTMLImageElement | null>(null);
   const noiseCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const postCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const feedbackCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -166,9 +168,12 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
       canvas,
       applyLiveImageFxBoost(frame ?? createEmptyFrame()),
       state.imageFxSettings,
+      state.effects,
       backgroundImageRef.current,
       renderTimestamp / 1000,
       getNoiseCanvas(noiseCanvasRef),
+      getEffectCanvas(postCanvasRef, canvas.width, canvas.height),
+      getEffectCanvas(feedbackCanvasRef, canvas.width, canvas.height),
     );
   }, [setCurrentTime, setFps]);
 
@@ -189,6 +194,7 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
         audioBuffer: exportAudioBuffer,
         analysis: exportAnalysis,
         imageFxSettings,
+        effects,
         backgroundImageUrl: exportBackgroundImageUrl,
       } = useStore.getState();
       if (!canvas || !exportAudioBuffer || !exportAnalysis) {
@@ -209,9 +215,22 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
 
       const fps = RENDER_FPS_LIMIT;
       const noiseCanvas = getNoiseCanvas(noiseCanvasRef);
+      const postCanvas = getEffectCanvas(postCanvasRef, EXPORT_WIDTH, EXPORT_HEIGHT);
+      const feedbackCanvas = getEffectCanvas(feedbackCanvasRef, EXPORT_WIDTH, EXPORT_HEIGHT);
+      clearEffectCanvas(feedbackCanvas);
       const drawFrame = (time: number, frame: number) => {
         const fxFrame = sampleAudioBufferFrame(exportAudioBuffer, exportAnalysis, time);
-        drawImageFxFrame(canvas, fxFrame, imageFxSettings, exportBackgroundImage, time + frame * 0.017, noiseCanvas);
+        drawImageFxFrame(
+          canvas,
+          fxFrame,
+          imageFxSettings,
+          effects,
+          exportBackgroundImage,
+          time + frame * 0.017,
+          noiseCanvas,
+          postCanvas,
+          feedbackCanvas,
+        );
       };
 
       try {
@@ -406,9 +425,12 @@ function drawImageFxFrame(
   canvas: HTMLCanvasElement,
   frame: ImageFxFrame,
   settings: ImageFxSettings,
+  effects: EffectSettings,
   backgroundImage: HTMLImageElement | null,
   time: number,
   noiseCanvas: HTMLCanvasElement,
+  postCanvas: HTMLCanvasElement,
+  feedbackCanvas: HTMLCanvasElement,
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
@@ -428,6 +450,7 @@ function drawImageFxFrame(
   drawNoise(ctx, width, height, frame, settings, time, noiseCanvas);
   drawScanlines(ctx, width, height, frame, settings);
   drawVignette(ctx, width, height, frame, settings);
+  drawToggleEffects(canvas, ctx, width, height, frame, effects, time, postCanvas, feedbackCanvas);
 }
 
 function drawReactiveImage(
@@ -662,6 +685,261 @@ function drawVignette(
   ctx.fillRect(0, 0, width, height);
 }
 
+function drawToggleEffects(
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  frame: ImageFxFrame,
+  effects: EffectSettings,
+  time: number,
+  postCanvas: HTMLCanvasElement,
+  feedbackCanvas: HTMLCanvasElement,
+) {
+  const hasDatamosh = effects.datamosh
+    || effects.strongDatamosh
+    || effects.blockDatamosh
+    || effects.glitchDatamosh
+    || effects.meltingDatamosh;
+
+  if (hasDatamosh) {
+    copyCanvas(postCanvas, canvas, width, height);
+    drawDatamoshFeedback(ctx, postCanvas, feedbackCanvas, width, height, frame, effects, time);
+  }
+
+  if (effects.blockDatamosh) {
+    copyCanvas(postCanvas, canvas, width, height);
+    drawBlockDatamosh(ctx, postCanvas, width, height, frame, time);
+  }
+
+  if (effects.glitchDatamosh) {
+    copyCanvas(postCanvas, canvas, width, height);
+    drawGlitchDatamosh(ctx, postCanvas, width, height, frame, time);
+  }
+
+  if (effects.meltingDatamosh) {
+    copyCanvas(postCanvas, canvas, width, height);
+    drawMeltDatamosh(ctx, postCanvas, width, height, frame, time);
+  }
+
+  if (effects.rgbSplit || effects.chromaticAberration) {
+    copyCanvas(postCanvas, canvas, width, height);
+    drawToggleRgbSplit(ctx, postCanvas, width, height, frame, effects, time);
+  }
+
+  if (effects.glitchNoise) {
+    drawToggleGlitchNoise(ctx, width, height, frame, time);
+  }
+
+  if (effects.cameraShake) {
+    copyCanvas(postCanvas, canvas, width, height);
+    drawCameraShake(ctx, postCanvas, width, height, frame, time);
+  }
+
+  copyCanvas(feedbackCanvas, canvas, width, height);
+}
+
+function drawDatamoshFeedback(
+  ctx: CanvasRenderingContext2D,
+  sourceCanvas: HTMLCanvasElement,
+  feedbackCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  frame: ImageFxFrame,
+  effects: EffectSettings,
+  time: number,
+) {
+  const level = getDatamoshLevel(effects);
+  if (level <= 0) return;
+
+  const beat = Math.max(frame.bass, frame.transient);
+  const feedbackAlpha = Math.min(0.28, 0.08 + level * 0.12 + beat * 0.08);
+  const shiftX = Math.sin(time * 3.1 + frame.mid * 4) * width * (0.004 + level * 0.006);
+  const shiftY = Math.cos(time * 2.4 + frame.high * 3) * height * (0.003 + level * 0.004);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = feedbackAlpha;
+  ctx.drawImage(feedbackCanvas, shiftX, shiftY, width, height);
+  ctx.restore();
+
+  const stripCount = Math.floor(12 + level * 24 + frame.mid * 16);
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.34, 0.12 + level * 0.16);
+  for (let i = 0; i < stripCount; i++) {
+    const band = frame.spectrum[Math.floor((i / Math.max(1, stripCount - 1)) * frame.spectrum.length)] ?? 0;
+    const y = Math.floor((i / stripCount) * height);
+    const stripHeight = Math.max(2, Math.ceil(height / stripCount) + 1);
+    const offset = (
+      Math.sin(time * 5.7 + i * 1.91)
+      + (seededNoise(time, i) - 0.5) * 1.8
+      + band * frame.transient * 1.6
+    ) * width * (0.004 + level * 0.012);
+    ctx.drawImage(sourceCanvas, 0, y, width, stripHeight, offset, y, width, stripHeight);
+  }
+  ctx.restore();
+}
+
+function drawBlockDatamosh(
+  ctx: CanvasRenderingContext2D,
+  sourceCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  frame: ImageFxFrame,
+  time: number,
+) {
+  const blockCount = Math.floor(10 + frame.bass * 18 + frame.mid * 12);
+  const minSize = Math.max(12, Math.floor(Math.min(width, height) * 0.026));
+  const maxSize = Math.max(minSize + 1, Math.floor(Math.min(width, height) * 0.105));
+
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.48, 0.22 + frame.transient * 0.22);
+  for (let i = 0; i < blockCount; i++) {
+    const sizeNoise = seededNoise(time, i * 9 + 2);
+    const blockW = Math.floor(minSize + sizeNoise * (maxSize - minSize));
+    const blockH = Math.floor(blockW * (0.55 + seededNoise(time, i * 9 + 3) * 1.15));
+    const sx = Math.floor(seededNoise(time, i * 9 + 4) * Math.max(1, width - blockW));
+    const sy = Math.floor(seededNoise(time, i * 9 + 5) * Math.max(1, height - blockH));
+    const band = frame.spectrum[Math.floor((i / Math.max(1, blockCount - 1)) * frame.spectrum.length)] ?? 0;
+    const dx = clamp(sx + (seededNoise(time, i * 9 + 6) - 0.5) * width * (0.035 + band * 0.05), -blockW, width);
+    const dy = clamp(sy + (seededNoise(time, i * 9 + 7) - 0.5) * height * (0.02 + frame.transient * 0.035), -blockH, height);
+    ctx.drawImage(sourceCanvas, sx, sy, blockW, blockH, dx, dy, blockW, blockH);
+  }
+  ctx.restore();
+}
+
+function drawGlitchDatamosh(
+  ctx: CanvasRenderingContext2D,
+  sourceCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  frame: ImageFxFrame,
+  time: number,
+) {
+  const slices = Math.floor(8 + frame.high * 18 + frame.transient * 10);
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.42, 0.2 + frame.high * 0.24);
+  for (let i = 0; i < slices; i++) {
+    const y = Math.floor(seededNoise(time, i * 17 + 1) * height);
+    const sliceHeight = Math.max(2, Math.floor((0.006 + seededNoise(time, i * 17 + 2) * 0.026) * height));
+    const offset = (seededNoise(time, i * 17 + 3) - 0.5) * width * (0.05 + frame.transient * 0.08);
+    ctx.drawImage(sourceCanvas, 0, y, width, sliceHeight, offset, y, width, sliceHeight);
+  }
+
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < Math.floor(3 + frame.transient * 8); i++) {
+    const y = seededNoise(time, i * 23 + 4) * height;
+    const h = Math.max(1, height * (0.003 + seededNoise(time, i * 23 + 5) * 0.008));
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(0, 229, 238, 0.22)' : 'rgba(255, 48, 160, 0.2)';
+    ctx.fillRect(0, y, width, h);
+  }
+  ctx.restore();
+}
+
+function drawMeltDatamosh(
+  ctx: CanvasRenderingContext2D,
+  sourceCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  frame: ImageFxFrame,
+  time: number,
+) {
+  const columns = 30;
+  const columnWidth = Math.ceil(width / columns);
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.32, 0.14 + frame.bass * 0.16 + frame.transient * 0.08);
+  for (let i = 0; i < columns; i++) {
+    const x = i * columnWidth;
+    const energy = frame.spectrum[Math.floor((i / Math.max(1, columns - 1)) * frame.spectrum.length)] ?? 0;
+    const pull = (0.025 + energy * 0.09 + frame.bass * 0.04) * height;
+    const drift = Math.sin(time * 1.8 + i * 0.7) * columnWidth * 0.55;
+    const sourceY = Math.max(0, Math.sin(time * 0.9 + i) * height * 0.025);
+    ctx.drawImage(
+      sourceCanvas,
+      x,
+      sourceY,
+      Math.min(columnWidth + 1, width - x),
+      height - sourceY,
+      x + drift,
+      sourceY + pull * 0.18,
+      Math.min(columnWidth + 1, width - x),
+      height - sourceY + pull,
+    );
+  }
+  ctx.restore();
+}
+
+function drawToggleRgbSplit(
+  ctx: CanvasRenderingContext2D,
+  sourceCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  frame: ImageFxFrame,
+  effects: EffectSettings,
+  time: number,
+) {
+  const chroma = effects.chromaticAberration ? 0.75 : 0;
+  const split = effects.rgbSplit ? 1 : 0;
+  const amount = (chroma + split) * (0.26 + frame.high * 0.32 + frame.transient * 0.16);
+  if (amount <= 0.01) return;
+
+  const offsetX = amount * width * 0.014;
+  const offsetY = Math.sin(time * 4.3) * amount * height * 0.004;
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = Math.min(0.28, amount * 0.22);
+  ctx.filter = 'sepia(1) saturate(2.4) hue-rotate(295deg)';
+  ctx.drawImage(sourceCanvas, offsetX, offsetY, width, height);
+  ctx.filter = 'sepia(1) saturate(2.1) hue-rotate(135deg)';
+  ctx.drawImage(sourceCanvas, -offsetX * 0.9, -offsetY, width, height);
+  ctx.restore();
+}
+
+function drawToggleGlitchNoise(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  frame: ImageFxFrame,
+  time: number,
+) {
+  const amount = 0.16 + frame.high * 0.22 + frame.transient * 0.24;
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 18; i++) {
+    const alpha = amount * (0.18 + seededNoise(time, i * 31) * 0.28);
+    const w = width * (0.02 + seededNoise(time, i * 31 + 1) * 0.18);
+    const h = Math.max(1, height * (0.002 + seededNoise(time, i * 31 + 2) * 0.008));
+    const x = seededNoise(time, i * 31 + 3) * width;
+    const y = seededNoise(time, i * 31 + 4) * height;
+    ctx.fillStyle = i % 3 === 0
+      ? `rgba(0, 229, 238, ${alpha})`
+      : i % 3 === 1
+        ? `rgba(255, 64, 160, ${alpha})`
+        : `rgba(255, 255, 255, ${alpha * 0.72})`;
+    ctx.fillRect(x, y, w, h);
+  }
+  ctx.restore();
+}
+
+function drawCameraShake(
+  ctx: CanvasRenderingContext2D,
+  sourceCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  frame: ImageFxFrame,
+  time: number,
+) {
+  const strength = 0.004 + frame.transient * 0.014 + frame.bass * 0.006;
+  const shakeX = (Math.sin(time * 19.3) + Math.sin(time * 7.7) * 0.45) * width * strength;
+  const shakeY = (Math.cos(time * 17.1) + Math.sin(time * 6.1) * 0.4) * height * strength;
+  const pad = Math.ceil(Math.max(width, height) * 0.025);
+
+  ctx.save();
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(sourceCanvas, -pad + shakeX, -pad + shakeY, width + pad * 2, height + pad * 2);
+  ctx.restore();
+}
+
 function drawImageCover(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -723,6 +1001,58 @@ function getNoiseCanvas(noiseCanvasRef: MutableRefObject<HTMLCanvasElement | nul
     noiseCanvasRef.current = canvas;
   }
   return noiseCanvasRef.current;
+}
+
+function getEffectCanvas(
+  canvasRef: MutableRefObject<HTMLCanvasElement | null>,
+  width: number,
+  height: number,
+) {
+  if (!canvasRef.current) {
+    canvasRef.current = document.createElement('canvas');
+  }
+  const canvas = canvasRef.current;
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  if (canvas.width !== safeWidth || canvas.height !== safeHeight) {
+    canvas.width = safeWidth;
+    canvas.height = safeHeight;
+  }
+  return canvas;
+}
+
+function clearEffectCanvas(canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext('2d');
+  ctx?.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function copyCanvas(
+  targetCanvas: HTMLCanvasElement,
+  sourceCanvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+) {
+  if (targetCanvas.width !== width || targetCanvas.height !== height) {
+    targetCanvas.width = width;
+    targetCanvas.height = height;
+  }
+  const targetCtx = targetCanvas.getContext('2d');
+  if (!targetCtx) return;
+  targetCtx.clearRect(0, 0, width, height);
+  targetCtx.drawImage(sourceCanvas, 0, 0, width, height);
+}
+
+function getDatamoshLevel(effects: EffectSettings) {
+  let level = effects.datamosh ? 0.38 : 0;
+  if (effects.strongDatamosh) level = Math.max(level, 0.7);
+  if (effects.blockDatamosh) level = Math.max(level, 0.52);
+  if (effects.glitchDatamosh) level = Math.max(level, 0.58);
+  if (effects.meltingDatamosh) level = Math.max(level, 0.54);
+  return level;
+}
+
+function seededNoise(time: number, index: number) {
+  return hashNoise(Math.floor(time * 30) * 131 + index * 17);
 }
 
 function hashNoise(value: number) {

@@ -268,23 +268,7 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
             <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 0.5 }}>
               Effects
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-              {EFFECT_LABELS.map(({ key, label }) => (
-                <FormControlLabel
-                  key={key}
-                  control={
-                    <Switch
-                      size="small"
-                      checked={effects[key]}
-                      onChange={() => toggleEffect(key)}
-                      sx={{ '& .MuiSwitch-thumb': { width: 12, height: 12 }, '& .MuiSwitch-track': { borderRadius: 6 } }}
-                    />
-                  }
-                  label={<Typography variant="caption" sx={{ fontSize: 11 }}>{label}</Typography>}
-                  sx={{ m: 0, py: 0.25 }}
-                />
-              ))}
-            </Box>
+            <EffectToggleList effects={effects} onToggle={toggleEffect} />
           </Paper>
         </>
       ) : displayMode === 'wave' ? (
@@ -383,6 +367,12 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
               onChange={(value) => setImageFxEffect(key, value)}
             />
           ))}
+
+          <Divider sx={{ my: 1.25 }} />
+          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 0.5 }}>
+            Effects
+          </Typography>
+          <EffectToggleList effects={effects} onToggle={toggleEffect} />
         </Paper>
       )}
 
@@ -458,6 +448,34 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
           </Tooltip>
         </Box>
       )}
+    </Box>
+  );
+}
+
+function EffectToggleList({
+  effects,
+  onToggle,
+}: {
+  effects: EffectSettings;
+  onToggle: (key: keyof EffectSettings) => void;
+}) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+      {EFFECT_LABELS.map(({ key, label }) => (
+        <FormControlLabel
+          key={key}
+          control={
+            <Switch
+              size="small"
+              checked={effects[key]}
+              onChange={() => onToggle(key)}
+              sx={{ '& .MuiSwitch-thumb': { width: 12, height: 12 }, '& .MuiSwitch-track': { borderRadius: 6 } }}
+            />
+          }
+          label={<Typography variant="caption" sx={{ fontSize: 11 }}>{label}</Typography>}
+          sx={{ m: 0, py: 0.25 }}
+        />
+      ))}
     </Box>
   );
 }
