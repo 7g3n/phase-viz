@@ -174,7 +174,7 @@ If no license has been added yet, consider adding an open-source license such as
 
 ## Author
 
-Created by Nagisa Dozono.
+Created by Nagisa Dozono(TRAJECTORIES).
 
 Music producer / independent creator exploring the intersection of music production, audio-reactive visuals, Web Audio API, Three.js, and creative web tools.
 
@@ -183,6 +183,6 @@ Music producer / independent creator exploring the intersection of music product
 * Demo: `https://waveform.tranjectories.xyz/`
 * Music Video Example: `https://www.youtube.com/watch?v=R8ItWr2V_ZA`
 * X / Twitter: `https://x.com/nagisa7g/status/2061390154967978117`
-'https://x.com/nagisa7g/status/2059545274310344726'
+`https://x.com/nagisa7g/status/2059545274310344726`
 * Repository: `https://github.com/7g3n/phase-viz/`
 
