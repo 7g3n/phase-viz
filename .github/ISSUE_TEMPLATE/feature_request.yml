@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose an improvement to the visualizer or contributor experience
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or creative goal
+      description: What workflow, limitation, or creative outcome should this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior and how it would fit the existing application.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - 3D rendering
+        - Audio analysis
+        - Wave visualizer
+        - Image FX
+        - Live / VJ
+        - MP4 export
+        - Accessibility
+        - Performance
+        - Documentation
+        - Contributor tooling
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note any workarounds or alternative approaches.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for similar requests.
+          required: true
+        - label: This request describes a feature that is not already implemented.
+          required: true
