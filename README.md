@@ -4,6 +4,10 @@ Open-source audio-reactive 3D visuals for musicians and creative coders, built w
 
 [Live demo](https://waveform.tranjectories.xyz/) · [Contributing](CONTRIBUTING.md) · [MIT License](LICENSE)
 
+## Technical Write-up
+
+- [How I Built an Audio-Reactive 3D Visualizer with Three.js and the Web Audio API](https://dev.to/7g3n/how-i-built-an-audio-reactive-3d-visualizer-with-threejs-and-the-web-audio-api-6an)
+
 ![Audio Reactive 3D Visualizer interface](docs/assets/hero.webp)
 
 If this project is useful to you, consider starring the repository or contributing an issue or pull request.
