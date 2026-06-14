@@ -45,6 +45,27 @@ npm run build
 
 音声ファイルや背景画像の処理、映像の生成はブラウザ内で行われます。
 
+## GitHub Packagesの依存関係
+
+このリポジトリでは、`@7g3n/*` スコープのnpmパッケージをGitHub Packagesから取得するように `.npmrc` を設定しています。
+
+GitHubでPersonal Access Tokenを作成し、`read:packages` 権限を付与してください。非公開リポジトリに関連付けられたパッケージを使う場合は、リポジトリを読み取れる権限も必要です。
+
+PowerShellでトークンをユーザーのnpm設定へ登録します。
+
+```powershell
+$env:NODE_AUTH_TOKEN = "YOUR_GITHUB_TOKEN"
+npm config set "//npm.pkg.github.com/:_authToken" "$env:NODE_AUTH_TOKEN" --location=user
+```
+
+パッケージは通常のnpm依存関係と同様に追加できます。
+
+```bash
+npm install @7g3n/PACKAGE_NAME
+```
+
+トークンはリポジトリ内の `.npmrc` や `package.json` に直接記載しないでください。
+
 ---
 
 ## English
@@ -199,6 +220,25 @@ Build for production:
 ```bash
 npm run build
 ```
+
+### GitHub Packages dependencies
+
+The project-level `.npmrc` resolves packages under the `@7g3n/*` scope from GitHub Packages.
+
+Create a GitHub Personal Access Token with `read:packages`, then store it in your user-level npm configuration:
+
+```powershell
+$env:NODE_AUTH_TOKEN = "YOUR_GITHUB_TOKEN"
+npm config set "//npm.pkg.github.com/:_authToken" "$env:NODE_AUTH_TOKEN" --location=user
+```
+
+Install a package normally:
+
+```bash
+npm install @7g3n/PACKAGE_NAME
+```
+
+Never commit an authentication token to the repository.
 
 Deploy with Cloudflare Workers Static Assets or another static hosting platform.
 
