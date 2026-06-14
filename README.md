@@ -119,6 +119,11 @@ I wanted a tool that allows musicians to create visual content directly from the
 * Cloudflare Workers Static Assets
 * Git / GitHub
 
+## Audio Visualization
+
+- [Audio Reactive 3D Visualizer](https://github.com/7g3n/phase-viz): An open-source browser-based music visualizer combining Three.js, WebGL, and the Web Audio API, with real-time rendering and Full HD MP4 export. by [@7g3n](https://github.com/7g3n)
+
+
 ## Motivation
 
 As an independent musician, I often felt that creating a full music video was difficult because of cost, communication, and production barriers.
