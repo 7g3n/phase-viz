@@ -1,284 +1,142 @@
 # Audio Reactive 3D Visualizer
 
-音源をブラウザ上で解析し、音声に反応する3Dビジュアル、波形、画像エフェクトをリアルタイムに生成するオープンソースのWebアプリです。作成した映像は1920x1080のMP4として書き出せます。
+Open-source audio-reactive 3D visuals for musicians and creative coders, built with Three.js, WebGL, and the Web Audio API.
 
-デモ: https://waveform.tranjectories.xyz/
+[Live demo](https://waveform.tranjectories.xyz/) · [Contributing](CONTRIBUTING.md) · [MIT License](LICENSE)
 
-## 主な機能
+![Audio Reactive 3D Visualizer interface](docs/assets/hero.webp)
 
-- Web Audio APIによる音量・周波数・波形解析
-- Three.js / WebGLを使った音声反応型3Dビジュアライザー
-- Wave Visualizer Mode
-- 画像と2Dエフェクトで構成するImage FX Mode
-- フルスクリーン、UI非表示、キーボード操作に対応したLive / VJ Mode
-- パーティクル数、サイズ、形状、カメラ距離、モーフ強度の調整
-- 背景、粒子、3Dオブジェクト、波形、各種エフェクトのレイヤー順変更
-- WebCodecsおよびffmpeg.wasmを利用したMP4書き出し
-
-## 使用技術
-
-- React
-- TypeScript
-- Vite
-- Three.js / WebGL
-- Web Audio API
-- Material UI / Emotion
-- Zustand
-- Cloudflare Workers Static Assets
-
-## ローカルでの起動
-
-```bash
-npm install
-npm run dev
-```
-
-本番ビルド:
-
-```bash
-npm run build
-```
-
-## MP4書き出しについて
-
-対応ブラウザではWebCodecsを優先し、利用できない場合はffmpeg.wasmへフォールバックします。ffmpegのローカルアセットが利用できないデプロイ環境では、jsDelivrから読み込みます。
-
-音声ファイルや背景画像の処理、映像の生成はブラウザ内で行われます。
-
-## GitHub Packagesの依存関係
-
-このリポジトリでは、`@7g3n/*` スコープのnpmパッケージをGitHub Packagesから取得するように `.npmrc` を設定しています。
-
-GitHubでPersonal Access Tokenを作成し、`read:packages` 権限を付与してください。非公開リポジトリに関連付けられたパッケージを使う場合は、リポジトリを読み取れる権限も必要です。
-
-PowerShellでトークンをユーザーのnpm設定へ登録します。
-
-```powershell
-$env:NODE_AUTH_TOKEN = "YOUR_GITHUB_TOKEN"
-npm config set "//npm.pkg.github.com/:_authToken" "$env:NODE_AUTH_TOKEN" --location=user
-```
-
-パッケージは通常のnpm依存関係と同様に追加できます。
-
-```bash
-npm install @7g3n/PACKAGE_NAME
-```
-
-トークンはリポジトリ内の `.npmrc` や `package.json` に直接記載しないでください。
-
----
-
-## English
-
-An open-source browser-based Audio Reactive 3D Visualizer for musicians, vocal synth producers, and independent creators.
-
-This project allows users to generate MV-style audio-reactive visuals from their own music and artwork using modern web technologies such as React, TypeScript, Three.js, WebGL, Web Audio API, and Cloudflare Workers Static Assets.
+If this project is useful to you, consider starring the repository or contributing an issue or pull request.
 
 ## Overview
 
-Audio Reactive 3D Visualizer is a creative web tool built to help independent musicians create visual content for their music without needing expensive music video production resources.
+Audio Reactive 3D Visualizer is a browser-based creative tool for turning music and artwork into real-time visuals. It analyzes an audio file locally, drives 3D objects, particles, waveforms, and image effects from the result, and can export the composition as a 1920x1080 MP4.
 
-The tool analyzes audio in real time and reflects the sound into 3D objects, waveforms, glitch effects, image effects, and other visual modes. It is designed for use cases such as:
+The project is aimed at independent musicians, vocal synth producers, VJs, video creators, and developers exploring audio-reactive graphics on the web.
 
-* Music visualizers
-* MV-style promotional videos
-* Short-form social media clips
-* Vocal synth / Vocaloid original song visuals
-* Audio-reactive artwork
-* Visual direction mockups for music videos
+## Highlights
 
-This project was created from a real problem I faced as an independent musician: producing music videos can be expensive, and communicating detailed visual ideas to another creator can be difficult.
-I wanted a tool that allows musicians to create visual content directly from their own songs and artwork.
-
-## Features
-
-* Audio-reactive 3D visualization
-* Real-time audio analysis using Web Audio API
-* Three.js / WebGL-based visual rendering
-* Waveform-style visual modes
-* Image FX modes using uploaded artwork
-* Glitch / noise / experimental visual effects
-* Live / VJ mode with fullscreen and keyboard controls
-* Browser-based 1920x1080 MP4 export
-* Adjustable particles, camera distance, morphing, and layer order
-* Designed for independent music creators
-
-## Tech Stack
-
-* React
-* TypeScript
-* Vite
-* Three.js
-* WebGL
-* Web Audio API
-* Canvas
-* Material UI / Emotion
-* Zustand
-* WebCodecs
-* ffmpeg.wasm
-* Cloudflare Workers Static Assets
-* Git / GitHub
-
-## Audio Visualization
-
-- [Audio Reactive 3D Visualizer](https://github.com/7g3n/phase-viz): An open-source browser-based music visualizer combining Three.js, WebGL, and the Web Audio API, with real-time rendering and Full HD MP4 export. by [@7g3n](https://github.com/7g3n)
-
-
-## Motivation
-
-As an independent musician, I often felt that creating a full music video was difficult because of cost, communication, and production barriers.
-
-Even when working with other creators, it can be hard to explain the exact visual atmosphere, timing, or emotional tone I want for a song.
-
-This project was built to lower that barrier.
-
-The goal is not to replace full music video production, but to provide a practical creative tool that helps artists quickly create:
-
-* Simple MV-style videos
-* Audio-reactive visuals
-* Promotional clips
-* Visual references
-* Demo visuals for unreleased songs
-
-## Real-world Usage
-
-This visualizer has already been used in an actual creative workflow.
-
-I used it to create and publish a music video for an original vocal synth song featuring Kasane Teto SV.
-
-Related posts about the project have received a cumulative total of over 2,067 likes on X, showing clear public interest in accessible audio-reactive visual tools for music creators.
+- Three visual modes: 3D Visualizer, Wave Visualizer, and Image FX
+- Real-time volume, frequency, and waveform analysis with the Web Audio API
+- Four 3D presets plus configurable particles, camera distance, morphing, and effects
+- Horizontal, circular, and bar waveform styles
+- Image FX presets with glow, blur, RGB shift, noise, distortion, and pulse controls
+- Live / VJ mode with fullscreen, hidden UI, keyboard shortcuts, and effect boost
+- Reorderable visual layers
+- Browser-based 1080p MP4 export using WebCodecs with an ffmpeg.wasm fallback
 
 ## Use Cases
 
-This project may be useful for:
+- Music visualizers and lyric-video backgrounds
+- Promotional clips for music releases
+- Vocal synth and electronic music visuals
+- Live performance and VJ experiments
+- Audio-reactive artwork
+- Music video direction mockups
+- Three.js, WebGL, and Web Audio API learning projects
 
-* Independent musicians
-* Vocaloid / Vocal synth producers
-* Electronic music producers
-* Video creators
-* Creative coders
-* Music visual designers
-* Artists who need quick promotional visuals
-* Developers interested in Web Audio API and WebGL
+## Tech Stack
 
-## Project Goals
+- React 19 and TypeScript
+- Vite
+- Three.js, React Three Fiber, and React Three Drei
+- WebGL and Canvas 2D
+- Web Audio API
+- Material UI and Emotion
+- Zustand
+- WebCodecs, mp4-muxer, and ffmpeg.wasm
+- Cloudflare Workers Static Assets
 
-The long-term goals of this project are:
+## Quick Start
 
-* Improve audio analysis accuracy
-* Add more visual modes and presets
-* Improve rendering performance
-* Improve UI/UX for musicians
-* Add better export workflows
-* Improve documentation
-* Make the project easier for contributors to join
-* Support more creative workflows for independent artists
-
-## Roadmap
-
-Planned improvements include:
-
-* More audio-reactive visual presets
-* Better waveform and spectrum visualization
-* Improved 3D object customization
-* Image-based visual effects
-* Better performance optimization
-* Export workflow improvements
-* Preset saving / loading
-* Documentation for contributors
-* Example projects and templates
-
-## Why Open Source?
-
-This project is open source because audio-reactive visual creation should be more accessible to independent creators.
-
-Many musicians do not have the budget to commission full-scale music videos for every release.
-By making this tool open source, other creators and developers can improve it, adapt it, and use it for their own creative workflows.
-
-Open-source collaboration can help improve:
-
-* Audio analysis
-* Rendering performance
-* Visual design
-* UI/UX
-* Accessibility
-* Documentation
-* Deployment
-* Export features
-
-## Development
-
-Install dependencies:
+Prerequisites: a current Node.js LTS release and npm.
 
 ```bash
-npm install
-```
-
-Run the development server:
-
-```bash
+git clone https://github.com/7g3n/phase-viz.git
+cd phase-viz
+npm ci
 npm run dev
 ```
 
-Build for production:
+Open the local URL printed by Vite, then drop in a supported audio file (`wav`, `mp3`, `flac`, `ogg`, or `aac`). A background image can be added as JPEG, PNG, WebP, or GIF.
+
+Create a production build with:
 
 ```bash
 npm run build
 ```
 
-### GitHub Packages dependencies
+## MP4 Export
 
-The project-level `.npmrc` resolves packages under the `@7g3n/*` scope from GitHub Packages.
+The Export MP4 action renders a 1920x1080 video at 30 FPS.
 
-Create a GitHub Personal Access Token with `read:packages`, then store it in your user-level npm configuration:
+1. The app uses WebCodecs when the browser exposes compatible video and audio encoders.
+2. If fast export is unavailable or fails, the app retries with ffmpeg.wasm.
+3. ffmpeg core assets are loaded from `/vendor` when deployed locally and fall back to jsDelivr when those assets are unavailable.
+4. The completed MP4 is generated as a browser blob and downloaded locally.
 
-```powershell
-$env:NODE_AUTH_TOKEN = "YOUR_GITHUB_TOKEN"
-npm config set "//npm.pkg.github.com/:_authToken" "$env:NODE_AUTH_TOKEN" --location=user
-```
+Long tracks and complex scenes can require substantial memory and processing time. Keep the tab open while an export is running.
 
-Install a package normally:
+## Privacy
 
-```bash
-npm install @7g3n/PACKAGE_NAME
-```
+Selected audio files and background images are read and processed in the browser. The application does not upload selected media to an application backend, and MP4 rendering also happens locally.
 
-Never commit an authentication token to the repository.
+Normal web requests are still made to load the application. When local ffmpeg core assets are unavailable, the fallback exporter downloads those runtime assets from jsDelivr.
 
-Deploy with Cloudflare Workers Static Assets or another static hosting platform.
+## Browser Compatibility
+
+A current desktop Chromium-based browser is recommended for the fastest WebCodecs export path. The app checks encoder support at runtime and can fall back to ffmpeg.wasm in browsers that support the required WebAssembly features.
+
+Exact codec, fullscreen, performance, and file-decoding support varies by browser and device. There is not yet a maintained compatibility matrix, and the fixed desktop workspace is not optimized for small screens.
+
+## Architecture Overview
+
+| Area | Location | Responsibility |
+| --- | --- | --- |
+| Application shell | `src/App.tsx` | Layout, visual mode selection, live controls, and export orchestration |
+| State | `src/store.ts` | Shared visualizer, playback, effect, and export state |
+| Audio analysis | `src/audio/` | Audio decoding inputs, FFT/spectrogram data, waveform sampling, and BPM detection |
+| Visualizers | `src/ui/VisualizerCanvas.tsx`, `WaveVisualizer.tsx`, `ImageFXVisualizer.tsx` | Real-time rendering and export frame generation |
+| 3D rendering | `src/visual/` | Three.js scene, particles, presets, shaders, and post-processing |
+| MP4 export | `src/export/` | WebCodecs encoding, MP4 muxing, ffmpeg.wasm fallback, and downloads |
+| Deployment | `vite.config.ts`, `wrangler.toml` | Vite build and Cloudflare static asset hosting |
 
 ## Contributing
 
-Contributions are welcome.
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), review the [Code of Conduct](CODE_OF_CONDUCT.md), and use the issue templates when reporting a bug or proposing an improvement.
 
-Possible contribution areas:
+Please open an issue before beginning a large behavioral or architectural change. Security reports should follow [SECURITY.md](SECURITY.md).
 
-* New visual modes
-* UI/UX improvements
-* Performance optimization
-* Bug fixes
-* Documentation
-* Accessibility improvements
-* Audio analysis improvements
-* Export workflow improvements
+## Roadmap
 
-Before making large changes, please open an issue or discussion first.
+- Improve keyboard and screen-reader accessibility throughout the workspace
+- Add responsive layouts for narrower screens
+- Add automated tests for audio analysis, state transitions, and export utilities
+- Add saveable and shareable visual presets
+- Improve long-duration export performance and resource guidance
+- Publish a tested browser compatibility matrix
+
+## 日本語
+
+Audio Reactive 3D Visualizerは、音源をブラウザ内で解析し、音声に反応する3Dビジュアル、波形、画像エフェクトを生成するオープンソースのWebアプリです。3D Visualizer、Wave Visualizer、Image FXの3モードを備え、作成した映像を1920x1080・30 FPSのMP4として書き出せます。
+
+- デモ: [waveform.tranjectories.xyz](https://waveform.tranjectories.xyz/)
+- 音声解析・画像処理・MP4生成はブラウザ内で行われます
+- WebCodecsが利用できない場合はffmpeg.wasmへフォールバックします
+- 開発を始めるには`npm ci`と`npm run dev`を実行してください
+- バグ報告や機能提案はGitHub Issues、コードの改善はPull Requestから歓迎します
+
+詳しい開発手順は[CONTRIBUTING.md](CONTRIBUTING.md)を参照してください。
 
 ## License
 
-This project is licensed under the MIT License.
+Licensed under the [MIT License](LICENSE).
 
 ## Author
 
-Created by Nagisa Dozono (TRAJECTORIES).
+Created by **Nagisa Dozono (TRAJECTORIES)**.
 
-Music producer / independent creator exploring the intersection of music production, audio-reactive visuals, Web Audio API, Three.js, and creative web tools.
-
-## Links
-
-* Demo: https://waveform.tranjectories.xyz/
-* Music Video Example: https://www.youtube.com/watch?v=R8ItWr2V_ZA
-* X / Twitter:
-  * https://x.com/nagisa7g/status/2061390154967978117
-  * https://x.com/nagisa7g/status/2059545274310344726
-* Repository: https://github.com/7g3n/phase-viz/
+- [GitHub: @7g3n](https://github.com/7g3n)
+- [X: @nagisa7g](https://x.com/nagisa7g)
+- [Live demo](https://waveform.tranjectories.xyz/)
+- [Music video created with the visualizer](https://www.youtube.com/watch?v=R8ItWr2V_ZA)
