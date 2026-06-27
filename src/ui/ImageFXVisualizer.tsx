@@ -269,6 +269,7 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
         }
 
         try {
+          clearEffectCanvas(feedbackCanvas);
           return await exportToMP4WithFFmpegFrames({
             canvas,
             audioBuffer: exportAudioBuffer,

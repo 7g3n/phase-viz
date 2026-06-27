@@ -250,13 +250,10 @@ export async function exportToMP4WithFFmpegFrames({
     return blob;
   } finally {
     signal?.removeEventListener('abort', terminateOnAbort);
+    await Promise.allSettled(pendingWrites);
     const ffmpeg = await ffmpegPromise.catch(() => null);
     if (ffmpeg) {
-      await Promise.allSettled([
-        ...frameFiles.map((file) => ffmpeg.deleteFile(file)),
-        ffmpeg.deleteFile(audioFile),
-        ffmpeg.deleteFile(outputFile),
-      ]);
+      await deleteFilesSettled(ffmpeg, [...frameFiles, audioFile, outputFile]);
     }
   }
 }
@@ -336,11 +333,7 @@ export async function exportToMP4(
     outputBlob = blob;
   } finally {
     signal?.removeEventListener('abort', terminateOnAbort);
-    await Promise.allSettled([
-      ...frameFiles.map((file) => ffmpeg.deleteFile(file)),
-      ffmpeg.deleteFile(audioFile),
-      ffmpeg.deleteFile(outputFile),
-    ]);
+    await deleteFilesSettled(ffmpeg, [...frameFiles, audioFile, outputFile]);
   }
   onProgress(1.0);
   if (!outputBlob) {
@@ -483,12 +476,27 @@ async function execFFmpeg(
   try {
     const exitCode = await ffmpeg.exec(args, -1, { signal });
     if (exitCode !== 0) {
-      const detail = logs.length ? `: ${logs.slice(-12).join('\n')}` : '';
-      throw new Error(`FFmpeg ${label} encode exited with code ${exitCode}${detail}`);
+      throw new Error(`exited with code ${exitCode}`);
     }
+  } catch (err) {
+    const detail = formatFFmpegLogDetail(logs);
+    throw new Error(`FFmpeg ${label} encode failed: ${getErrorMessage(err)}${detail}`);
   } finally {
     ffmpeg.off('log', onLog);
   }
+}
+
+async function deleteFilesSettled(ffmpeg: FFmpegType, files: string[]) {
+  const chunkSize = 64;
+  for (let start = 0; start < files.length; start += chunkSize) {
+    await Promise.allSettled(
+      files.slice(start, start + chunkSize).map((file) => ffmpeg.deleteFile(file)),
+    );
+  }
+}
+
+function formatFFmpegLogDetail(logs: string[]) {
+  return logs.length ? `:\n${logs.slice(-12).join('\n')}` : '';
 }
 
 function assertValidMP4(rawData: Uint8Array | string) {
