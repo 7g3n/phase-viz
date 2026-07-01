@@ -12,6 +12,8 @@ interface WebCodecsExportOptions {
 
 const AUDIO_CODEC = 'mp4a.40.2';
 const AUDIO_CHUNK_SIZE = 65536;
+const AAC_SAMPLES_PER_FRAME = 1024;
+const AUDIO_CHUNK_HEADROOM = 8;
 const MAX_VIDEO_QUEUE_SIZE = 96;
 const PROGRESS_FRAME_INTERVAL = 45;
 
@@ -49,7 +51,7 @@ export async function exportToMP4WithWebCodecs({
     },
     fastStart: {
       expectedVideoChunks: totalFrames,
-      expectedAudioChunks: Math.ceil(audioBuffer.length / AUDIO_CHUNK_SIZE),
+      expectedAudioChunks: getExpectedAudioChunks(audioBuffer),
     },
   });
 
@@ -266,6 +268,14 @@ function getAvcLevelHex(width: number, height: number, fps: number) {
   return levels.find((level) =>
     macroblocksPerFrame <= level.maxFrame && macroblocksPerSecond <= level.maxSecond,
   )?.hex ?? '34';
+}
+
+function getExpectedAudioChunks(audioBuffer: AudioBuffer) {
+  const inputChunks = Math.ceil(audioBuffer.length / AUDIO_CHUNK_SIZE);
+  // AAC encoders may emit one chunk per 1024-sample AAC frame, plus a few
+  // priming/drain chunks during flush. mp4-muxer expects an upper bound here.
+  const aacFrames = Math.ceil(audioBuffer.length / AAC_SAMPLES_PER_FRAME);
+  return Math.max(inputChunks, aacFrames) + AUDIO_CHUNK_HEADROOM;
 }
 
 async function getSupportedVideoConfig(configs: VideoEncoderConfig[]) {
