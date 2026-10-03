@@ -29,12 +29,13 @@ Run the checks that apply to your change:
 
 ```bash
 npm run lint
+npm test
 npm run build
 ```
 
 The build command runs the TypeScript project build before creating the Vite production bundle.
 
-There is not yet an automated test suite. For visual or interaction changes, describe the browsers, modes, and files you tested manually in the pull request.
+`npm test` runs the audio-analysis and export-utility unit tests once without watch mode, so it is suitable for CI. For visual or interaction changes, describe the browsers, modes, and files you tested manually in the pull request.
 
 ## Architecture Contributions
 

@@ -7,12 +7,12 @@ export function computeSpectrogram(
 ): Float32Array[] {
   const frames: Float32Array[] = [];
   const windowFn = hanningWindow(FFT_SIZE);
-  const stepSamples = Math.floor(sampleRate / 30); // 30fps aligned
+  const stepSamples = Math.max(1, Math.floor(sampleRate / 30)); // 30fps aligned
   const bitReversal = createBitReversalTable(FFT_SIZE);
   const real = new Float32Array(FFT_SIZE);
   const imag = new Float32Array(FFT_SIZE);
 
-  for (let offset = 0; offset + FFT_SIZE < channelData.length; offset += stepSamples) {
+  for (let offset = 0; offset + FFT_SIZE <= channelData.length; offset += stepSamples) {
     const frame = new Float32Array(FFT_SIZE / 2);
 
     for (let i = 0; i < FFT_SIZE; i++) {
@@ -94,11 +94,14 @@ function fftInPlace(real: Float32Array, imag: Float32Array, bitReversal: Uint16A
 
 export function computeWaveform(channelData: Float32Array, points = 512): Float32Array {
   const waveform = new Float32Array(points);
-  const blockSize = Math.floor(channelData.length / points);
+  if (channelData.length === 0) return waveform;
+
   for (let i = 0; i < points; i++) {
     let peak = 0;
-    for (let j = 0; j < blockSize; j++) {
-      const v = Math.abs(channelData[i * blockSize + j]);
+    const start = Math.floor((i * channelData.length) / points);
+    const end = Math.max(start + 1, Math.floor(((i + 1) * channelData.length) / points));
+    for (let j = start; j < end; j++) {
+      const v = Math.abs(channelData[j]);
       if (v > peak) peak = v;
     }
     waveform[i] = peak;
