@@ -24,6 +24,7 @@ phase-viz currently ships as a full creative web app, but the project is being s
 - Supports configurable particles, waveform styles, image effects, visual layers, and presets
 - Provides Live / VJ mode with fullscreen, hidden UI, shortcuts, intensity, and boost controls
 - Exports MP4 locally in the browser with Fast 720p and High 1080p presets
+- Exports 9:16 Shorts / Reels clips of the track's hook with an optional title and credit
 - Keeps selected media local to the browser; no app backend upload is required
 
 ## Engine Direction
@@ -119,6 +120,15 @@ The UI now calls an `ExportEngine` wrapper while existing encoders remain in pla
 5. The completed MP4 is generated as a browser blob and downloaded locally.
 
 Long tracks and complex scenes can require substantial memory and processing time. Keep the tab open while an export is running.
+
+### Shorts / Clip Export
+
+Turn on **Shorts / Clip** in the export panel to render part of a track as a vertical clip:
+
+- 15, 30, or 60 second clips. The start point follows automatic hook detection (`src/audio/hook.ts`) until you drag it: windows are scored by spectral energy, transient density, and how much louder they are than the preceding seconds, and candidates start on transient onsets.
+- 720 x 1280 and 1080 x 1920 presets. The stage previews the 9:16 frame, and the 3D camera pulls back in portrait so the scene is not cropped.
+- Optional title, artist, and credit text burned into every frame (`src/export/overlay.ts`), previewed live on the stage.
+- Audio is sliced with a short fade-in and an equal-power fade-out (`src/export/clip.ts`). Full-track exports without the clip option are unchanged.
 
 ## Privacy
 

@@ -3,8 +3,14 @@ export interface RecorderFrame {
   timeMs: number;
 }
 
+import type { ExportOverlaySettings } from '../state/types';
+
 export interface ExportRenderOptions {
   duration: number;
+  /** Track time (seconds) where the export starts. Defaults to 0. */
+  startTime?: number;
+  /** Text burned into every frame. Omit for a clean full-track export. */
+  overlay?: ExportOverlaySettings | null;
   fps: number;
   width: number;
   height: number;

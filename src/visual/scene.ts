@@ -5,6 +5,11 @@ import type { ParticleShape, VisualizerLayerId } from '../store';
 
 const DEFAULT_3D_LAYER_ORDER: VisualizerLayerId[] = ['background', 'particles', 'objects', 'waveform'];
 const BACKGROUND_PLANE_DISTANCE = 50;
+/**
+ * In portrait the horizontal field of view shrinks, so the orbiting camera is pulled
+ * back until the scene fills roughly this fraction of the width it fills in landscape.
+ */
+const PORTRAIT_FRAMING = 0.8;
 
 export class VisualizerScene {
   renderer: THREE.WebGLRenderer;
@@ -36,6 +41,7 @@ export class VisualizerScene {
   private time = 0;
   private cameraAngle = 0;
   private cameraDistance = 5;
+  private framingScale = 1;
   private morphIntensity = 1.35;
   private bloomStrength = 0;
   private datamoshAmount = 0;
@@ -451,9 +457,10 @@ export class VisualizerScene {
     // Camera orbit
     this.cameraAngle += dt * bpmFactor * 0.1;
     const shake = effects.cameraShake ? transient * 0.15 : 0;
-    this.camera.position.x = Math.sin(this.cameraAngle) * this.cameraDistance + (Math.random() - 0.5) * shake;
-    this.camera.position.y = Math.sin(this.cameraAngle * 0.5) * this.cameraDistance * 0.3 + (Math.random() - 0.5) * shake;
-    this.camera.position.z = Math.cos(this.cameraAngle) * this.cameraDistance;
+    const distance = this.cameraDistance * this.framingScale;
+    this.camera.position.x = Math.sin(this.cameraAngle) * distance + (Math.random() - 0.5) * shake;
+    this.camera.position.y = Math.sin(this.cameraAngle * 0.5) * distance * 0.3 + (Math.random() - 0.5) * shake;
+    this.camera.position.z = Math.cos(this.cameraAngle) * distance;
     this.camera.lookAt(0, 0, 0);
 
     // Update waveform lines
@@ -554,6 +561,7 @@ export class VisualizerScene {
 
     this.camera.aspect = safeWidth / safeHeight;
     this.camera.updateProjectionMatrix();
+    this.framingScale = this.camera.aspect < 1 ? Math.max(1, PORTRAIT_FRAMING / this.camera.aspect) : 1;
     this.renderer.setSize(safeWidth, safeHeight, false);
     this.rtA.setSize(safeWidth, safeHeight);
     this.rtB.setSize(safeWidth, safeHeight);

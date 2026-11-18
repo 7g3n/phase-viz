@@ -8,7 +8,7 @@ export type ImageFxPreset = 'clean' | 'glitch' | 'dreamy' | 'dark' | 'vhs';
 export type ImageFxEffectKey = 'glow' | 'blur' | 'rgbShift' | 'noise' | 'distortion' | 'pulse';
 export type LiveHelpLanguage = 'en' | 'ja';
 export type ParticleShape = 'circle' | 'square' | 'diamond' | 'star' | 'ring';
-export type ExportPresetId = 'fast720p' | 'high1080p';
+export type ExportPresetId = 'fast720p' | 'high1080p' | 'shorts720' | 'shorts1080';
 export type VisualizerLayerId = 'background' | 'particles' | 'objects' | 'waveform';
 export type ImageFxLayerId =
   | 'background'
@@ -78,7 +78,45 @@ export const EXPORT_PRESETS: Record<ExportPresetId, ExportPreset> = {
     height: 1080,
     fps: 30,
   },
+  shorts720: {
+    id: 'shorts720',
+    label: 'Shorts Fast 9:16',
+    description: '720 x 1280 / 30 fps',
+    width: 720,
+    height: 1280,
+    fps: 30,
+  },
+  shorts1080: {
+    id: 'shorts1080',
+    label: 'Shorts 9:16',
+    description: '1080 x 1920 / 30 fps',
+    width: 1080,
+    height: 1920,
+    fps: 30,
+  },
 };
+
+export function isPortraitExportPreset(id: ExportPresetId) {
+  const preset = EXPORT_PRESETS[id];
+  return preset.height > preset.width;
+}
+
+export const EXPORT_CLIP_LENGTHS = [15, 30, 60] as const;
+
+export interface ExportClipSettings {
+  /** When enabled, export renders only [start, start + length] and burns in the overlay. */
+  enabled: boolean;
+  start: number;
+  length: number;
+  /** True while the start point follows automatic hook detection. */
+  autoStart: boolean;
+}
+
+export interface ExportOverlaySettings {
+  title: string;
+  artist: string;
+  showCredit: boolean;
+}
 
 export interface AudioAnalysis {
   bpm: number;
@@ -209,7 +247,11 @@ export interface ExportSlice {
   exportStatus: string | null;
   exportDownloadUrl: string | null;
   exportDownloadName: string;
+  exportClip: ExportClipSettings;
+  exportOverlay: ExportOverlaySettings;
   setExportPreset: (preset: ExportPresetId) => void;
+  setExportClip: (clip: Partial<ExportClipSettings>) => void;
+  setExportOverlay: (overlay: Partial<ExportOverlaySettings>) => void;
   setIsExporting: (v: boolean) => void;
   setExportProgress: (p: number) => void;
   setExportError: (message: string | null) => void;

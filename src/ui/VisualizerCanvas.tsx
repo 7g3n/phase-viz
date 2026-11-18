@@ -6,6 +6,7 @@ import { PRESETS, type PresetConfig } from '../visual/presets';
 import { type ExportFrameRenderer, FrameRecorder } from '../export/recorder';
 import { exportToMP4WithFFmpegFrames } from '../export/ffmpeg';
 import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
+import { prepareExportClip } from '../export/clip';
 
 interface Props {
   recorderRef: React.MutableRefObject<FrameRecorder | null>;
@@ -284,11 +285,14 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
   );
 
   const renderExportFrames = useCallback<ExportFrameRenderer>(
-    async ({ duration, fps, width, height, onProgress, onStatus, signal }) => {
+    async ({ duration, startTime, overlay, fps, width, height, onProgress, onStatus, signal }) => {
       const scene = sceneRef.current;
       const canvas = canvasRef.current;
       if (!scene || !analysis || !canvas) {
         throw new Error('Visualizer is not ready for export');
+      }
+      if (!audioBuffer) {
+        throw new Error('Audio is not ready for export');
       }
 
       const exportWidth = Math.max(2, Math.floor(width / 2) * 2);
@@ -302,20 +306,22 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
       try {
         const exportFrame = createReusableAnalysisFrame();
         const exportLookup = createAnalysisLookup(analysis);
+        const clip = prepareExportClip({ sourceCanvas: canvas, audioBuffer, startTime, duration, overlay });
         const drawFrame = (time: number, frame: number) => {
           scene.resize(exportWidth, exportHeight);
-          sampleAnalysisFrameInto(analysis, time, exportFrame, exportLookup);
+          sampleAnalysisFrameInto(analysis, clip.startTime + time, exportFrame, exportLookup);
           renderAnalyzedFrame(scene, analysis, preset, effects, exportFrame, frame === 0 ? 0 : 1 / fps);
+          clip.compose();
         };
 
         let fastExportError: Error | null = null;
-        if (audioBuffer && canUseWebCodecsMP4()) {
+        if (canUseWebCodecsMP4()) {
           try {
             onStatus?.('Rendering fast MP4...');
             scene.resetExportState();
             const blob = await exportToMP4WithWebCodecs({
-              canvas,
-              audioBuffer,
+              canvas: clip.canvas,
+              audioBuffer: clip.audioBuffer,
               duration,
               fps,
               renderFrame: drawFrame,
@@ -332,15 +338,11 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
           }
         }
 
-        if (!audioBuffer) {
-          throw new Error('Audio is not ready for export');
-        }
-
         try {
           scene.resetExportState();
           return await exportToMP4WithFFmpegFrames({
-            canvas,
-            audioBuffer,
+            canvas: clip.canvas,
+            audioBuffer: clip.audioBuffer,
             duration,
             fps,
             renderFrame: drawFrame,

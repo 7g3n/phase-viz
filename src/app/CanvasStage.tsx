@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
@@ -14,6 +14,9 @@ import Paper from '@mui/material/Paper';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import Timeline from '../ui/Timeline';
+import OverlayPreview from '../ui/OverlayPreview';
+import { EXPORT_PRESETS, isPortraitExportPreset, useStore } from '../store';
+import { hasVisibleOverlay } from '../export/overlay';
 import LiveVJHelp from '../ui/LiveVJHelp';
 import type { DisplayMode, LiveHelpLanguage } from '../store';
 import type { ExportFrameRenderer, FrameRecorder } from '../export/recorder';
@@ -65,6 +68,19 @@ export default function CanvasStage({
   onCloseLiveHelp,
   onLiveHelpLanguageChange,
 }: CanvasStageProps) {
+  const exportPreset = useStore((state) => state.exportPreset);
+  const clipEnabled = useStore((state) => state.exportClip.enabled);
+  const exportOverlay = useStore((state) => state.exportOverlay);
+  const portraitPreview = !isLiveMode && isPortraitExportPreset(exportPreset);
+  const presetSize = EXPORT_PRESETS[exportPreset];
+  const showOverlayPreview = clipEnabled && !isLiveMode && hasVisibleOverlay(exportOverlay);
+
+  // The visualizers size their canvases on window resize; nudge them when the frame changes shape.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    return () => cancelAnimationFrame(id);
+  }, [portraitPreview]);
+
   return (
     <Box
       ref={containerRef}
@@ -76,16 +92,32 @@ export default function CanvasStage({
         flexDirection: 'column',
       }}
     >
-      <Box sx={{ flex: 1, position: 'relative' }}>
-        <Suspense fallback={<div style={{ width: '100%', height: '100%' }} />}>
-          {displayMode === 'imageFx' ? (
-            <ImageFXVisualizer exportRendererRef={exportRendererRef} />
-          ) : displayMode === 'wave' ? (
-            <WaveVisualizer exportRendererRef={exportRendererRef} />
-          ) : (
-            <VisualizerCanvas recorderRef={recorderRef} exportRendererRef={exportRendererRef} />
-          )}
-        </Suspense>
+      <Box sx={{ flex: 1, position: 'relative', bgcolor: portraitPreview ? '#000' : undefined }}>
+        <Box
+          sx={portraitPreview
+            ? {
+              position: 'absolute',
+              top: 0,
+              left: '50%',
+              height: '100%',
+              maxWidth: '100%',
+              aspectRatio: `${presetSize.width} / ${presetSize.height}`,
+              transform: 'translateX(-50%)',
+              boxShadow: '0 0 0 1px rgba(255,255,255,0.08)',
+            }
+            : { position: 'absolute', inset: 0 }}
+        >
+          <Suspense fallback={<div style={{ width: '100%', height: '100%' }} />}>
+            {displayMode === 'imageFx' ? (
+              <ImageFXVisualizer exportRendererRef={exportRendererRef} />
+            ) : displayMode === 'wave' ? (
+              <WaveVisualizer exportRendererRef={exportRendererRef} />
+            ) : (
+              <VisualizerCanvas recorderRef={recorderRef} exportRendererRef={exportRendererRef} />
+            )}
+          </Suspense>
+          {showOverlayPreview && <OverlayPreview overlay={exportOverlay} />}
+        </Box>
 
         {showChrome && (
           <Tooltip title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>

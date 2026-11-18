@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import Box from '@mui/material/Box';
 import { type AudioAnalysis, type WaveVisualizerSettings, useStore } from '../store';
 import { type ExportFrameRenderer } from '../export/recorder';
+import { prepareExportClip } from '../export/clip';
 import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
 import { exportToMP4WithFFmpegFrames } from '../export/ffmpeg';
 
@@ -189,7 +190,7 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
   }, [renderLiveFrame]);
 
   const renderExportFrames = useCallback<ExportFrameRenderer>(
-    async ({ duration, fps, width, height, onProgress, onStatus, signal }) => {
+    async ({ duration, startTime, overlay, fps, width, height, onProgress, onStatus, signal }) => {
       const canvas = canvasRef.current;
       const {
         audioBuffer: exportAudioBuffer,
@@ -216,9 +217,18 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
       }
 
       const exportFrame = getReusableWaveFrame(exportFrameRef);
-      const drawFrame = (time: number, frame: number) => {
+      const clip = prepareExportClip({
+        sourceCanvas: canvas,
+        audioBuffer: exportAudioBuffer,
+        startTime,
+        duration,
+        overlay,
+      });
+      const drawFrame = (exportTime: number, frame: number) => {
+        const time = clip.startTime + exportTime;
         const waveFrame = sampleAudioBufferFrameInto(exportAudioBuffer, exportAnalysis, time, exportFrame);
         drawWaveFrame(canvas, waveFrame, waveSettings, exportBackgroundImage, time + frame * 0.001);
+        clip.compose();
       };
 
       try {
@@ -227,8 +237,8 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
           try {
             onStatus?.('Rendering wave MP4...');
             const blob = await exportToMP4WithWebCodecs({
-              canvas,
-              audioBuffer: exportAudioBuffer,
+              canvas: clip.canvas,
+              audioBuffer: clip.audioBuffer,
               duration,
               fps,
               renderFrame: drawFrame,
@@ -247,8 +257,8 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
 
         try {
           return await exportToMP4WithFFmpegFrames({
-            canvas,
-            audioBuffer: exportAudioBuffer,
+            canvas: clip.canvas,
+            audioBuffer: clip.audioBuffer,
             duration,
             fps,
             renderFrame: drawFrame,

@@ -1,8 +1,10 @@
-import type { ExportPreset } from '../../state';
+import type { ExportOverlaySettings, ExportPreset } from '../../state';
 import type { ExportFrameRenderer } from '../../export/recorder';
 
 export type ExportJob = {
   duration: number;
+  startTime?: number;
+  overlay?: ExportOverlaySettings | null;
   preset: ExportPreset;
   renderer: ExportFrameRenderer;
   signal?: AbortSignal;

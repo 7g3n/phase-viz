@@ -3,11 +3,13 @@ import type { ExportJob, ExportResult } from './ExportJob';
 
 export class ExportEngine {
   async render(job: ExportJob): Promise<ExportResult> {
-    const { preset, renderer, duration, signal, onProgress, onStatus } = job;
+    const { preset, renderer, duration, startTime, overlay, signal, onProgress, onStatus } = job;
     onStatus?.(`Preparing ${preset.label} export...`);
 
     const blob = await renderer({
       duration,
+      startTime,
+      overlay,
       fps: preset.fps,
       width: preset.width,
       height: preset.height,
@@ -22,7 +24,7 @@ export class ExportEngine {
 
     return {
       blob,
-      fileName: getExportFileName(preset),
+      fileName: getExportFileName(preset, startTime !== undefined),
     };
   }
 }
@@ -40,7 +42,13 @@ function createThrottledProgressReporter(onProgress: (progress: number) => void)
   };
 }
 
-function getExportFileName(preset: { height: number }) {
+function getExportFileName(preset: { width: number; height: number }, isClip: boolean) {
+  if (preset.height > preset.width) {
+    return `audio-visualizer-shorts-${preset.width}x${preset.height}.mp4`;
+  }
+  if (isClip) {
+    return `audio-visualizer-clip-${preset.height}p.mp4`;
+  }
   return preset.height === 1080
     ? DEFAULT_EXPORT_FILE_NAME
     : `audio-visualizer-${preset.height}p.mp4`;

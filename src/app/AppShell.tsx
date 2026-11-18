@@ -4,7 +4,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from '../theme';
 import AppLayout from './AppLayout';
 import { EXPORT_PRESETS, useStore } from '../store';
-import type { ImageFxPreset, PresetId, WaveVisualizerType } from '../store';
+import type { ExportClipSettings, ImageFxPreset, PresetId, WaveVisualizerType } from '../store';
 import type { ExportFrameRenderer, FrameRecorder } from '../export/recorder';
 import { triggerBlobDownload } from '../export/download';
 import { ExportEngine } from '../engine/export/ExportEngine';
@@ -73,9 +73,14 @@ export default function AppShell() {
     }
     setExportDownload(null);
 
+    const { exportClip, exportOverlay } = useStore.getState();
+    const range = getExportRange(analysis.duration, exportClip);
+
     try {
       const { blob, fileName } = await exportEngineRef.current.render({
-        duration: analysis.duration,
+        duration: range.duration,
+        startTime: range.startTime,
+        overlay: exportClip.enabled ? exportOverlay : null,
         preset: selectedExportPreset,
         renderer: exportRendererRef.current,
         signal: abortController.signal,
@@ -290,4 +295,13 @@ function cycleValue<T>(values: T[], currentIndex: number, direction: 1 | -1): T 
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getExportRange(trackDuration: number, clip: ExportClipSettings) {
+  if (!clip.enabled) {
+    return { startTime: undefined, duration: trackDuration };
+  }
+  const length = Math.min(clip.length, trackDuration);
+  const startTime = Math.min(Math.max(0, clip.start), Math.max(0, trackDuration - length));
+  return { startTime, duration: Math.min(length, trackDuration - startTime) };
 }
