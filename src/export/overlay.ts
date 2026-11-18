@@ -1,6 +1,6 @@
 import type { ExportOverlaySettings } from '../state/types';
 
-export const OVERLAY_CREDIT_TEXT = 'made with phase-viz  /  waveform.tranjectories.xyz';
+export const OVERLAY_CREDIT_TEXT = 'made with phase-viz  /  waveform.7g3.net';
 
 const OVERLAY_FONT_STACK = [
   '"Helvetica Neue"',
