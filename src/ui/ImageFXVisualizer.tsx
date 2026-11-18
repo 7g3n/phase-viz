@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import Box from '@mui/material/Box';
 import { type AudioAnalysis, type EffectSettings, type ImageFxLayerId, type ImageFxSettings, useStore } from '../store';
 import { type ExportFrameRenderer } from '../export/recorder';
+import { prepareExportClip } from '../export/clip';
 import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
 import { exportToMP4WithFFmpegFrames } from '../export/ffmpeg';
 
@@ -195,7 +196,7 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
   }, [renderLiveFrame]);
 
   const renderExportFrames = useCallback<ExportFrameRenderer>(
-    async ({ duration, fps, width, height, onProgress, onStatus, signal }) => {
+    async ({ duration, startTime, overlay, fps, width, height, onProgress, onStatus, signal }) => {
       const canvas = canvasRef.current;
       const {
         audioBuffer: exportAudioBuffer,
@@ -228,7 +229,15 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
       const feedbackCanvas = getEffectCanvas(feedbackCanvasRef, exportWidth, exportHeight);
       const exportFrame = getReusableImageFxFrame(exportFrameRef);
       clearEffectCanvas(feedbackCanvas);
-      const drawFrame = (time: number, frame: number) => {
+      const clip = prepareExportClip({
+        sourceCanvas: canvas,
+        audioBuffer: exportAudioBuffer,
+        startTime,
+        duration,
+        overlay,
+      });
+      const drawFrame = (exportTime: number, frame: number) => {
+        const time = clip.startTime + exportTime;
         const fxFrame = sampleAudioBufferFrameInto(exportAudioBuffer, exportAnalysis, time, exportFrame);
         drawImageFxFrame(
           canvas,
@@ -242,6 +251,7 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
           postCanvas,
           feedbackCanvas,
         );
+        clip.compose();
       };
 
       try {
@@ -250,8 +260,8 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
           try {
             onStatus?.('Rendering Image FX MP4...');
             const blob = await exportToMP4WithWebCodecs({
-              canvas,
-              audioBuffer: exportAudioBuffer,
+              canvas: clip.canvas,
+              audioBuffer: clip.audioBuffer,
               duration,
               fps,
               renderFrame: drawFrame,
@@ -271,8 +281,8 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
         try {
           clearEffectCanvas(feedbackCanvas);
           return await exportToMP4WithFFmpegFrames({
-            canvas,
-            audioBuffer: exportAudioBuffer,
+            canvas: clip.canvas,
+            audioBuffer: clip.audioBuffer,
             duration,
             fps,
             renderFrame: drawFrame,

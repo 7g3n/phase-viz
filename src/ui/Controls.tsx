@@ -28,6 +28,7 @@ import type {
   WaveVisualizerType,
 } from '../store';
 import { PRESETS } from '../visual/presets';
+import ShortsControls from './ShortsControls';
 import { IMAGE_FX_PRESET_LABELS, IMAGE_FX_PRESETS } from '../visual/imageFxPresets';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
@@ -513,6 +514,8 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
         <Typography variant="caption" color="text.secondary">FPS</Typography>
         <Chip label={`${fps} fps`} size="small" variant="outlined" sx={{ fontSize: 10, height: 18 }} />
       </Box>
+
+      <ShortsControls />
 
       <Box sx={{ px: 0.5 }}>
         <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 0.75 }}>
